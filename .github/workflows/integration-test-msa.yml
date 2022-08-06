@@ -1,0 +1,29 @@
+name: MSA integration test
+on:
+ workflow_dispatch:
+ push:
+ pull_request:
+
+jobs:
+ run-databricks-notebook:
+   runs-on: ubuntu-latest
+   steps:
+     - name: Checkout repo
+       uses: actions/checkout@v2
+     - name: Run a databricks notebook
+       uses: databricks/run-notebook@v0
+       with:
+         local-notebook-path: RUNME.py
+         workspace-temp-dir: /Users/jingting.lu@databricks.com/
+         databricks-host: ${{ secrets.DEPLOYMENT_TARGET_URL_MSA }}
+         databricks-token: ${{ secrets.DEPLOYMENT_TARGET_TOKEN_MSA }}
+         new-cluster-json: >
+           {
+             "num_workers": 1,
+             "spark_version": "10.4.x-scala2.12",
+             "node_type_id": "Standard_D3_v2"
+           }
+         notebook-params-json: >
+           {
+            "run_job": "True"
+           }
