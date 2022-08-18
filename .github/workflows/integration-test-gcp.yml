@@ -15,6 +15,7 @@ jobs:
        uses: databricks/run-notebook@v0
        with:
          local-notebook-path: RUNME.py
+         git-commit: ${{ github.sha }}
          databricks-host: ${{ secrets.DEPLOYMENT_TARGET_URL_GCP }}
          databricks-token: ${{ secrets.DEPLOYMENT_TARGET_TOKEN_GCP }}
          new-cluster-json: >
