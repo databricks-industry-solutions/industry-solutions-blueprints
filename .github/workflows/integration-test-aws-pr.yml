@@ -1,4 +1,4 @@
-name: AWS integration test
+name: AWS integration test PR
 
 on:
  pull_request:
