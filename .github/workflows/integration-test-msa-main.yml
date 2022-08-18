@@ -21,7 +21,11 @@ jobs:
            {
              "num_workers": 1,
              "spark_version": "10.4.x-scala2.12",
-             "node_type_id": "Standard_D3_v2"
+             "node_type_id": "Standard_D3_v2",
+             "azure_attributes": {
+                            "availability": "ON_DEMAND_AZURE",
+                            "first_on_demand": 1
+                            }
            }
          notebook-params-json: >
            {
