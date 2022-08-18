@@ -19,11 +19,13 @@ jobs:
          databricks-token: ${{ secrets.DEPLOYMENT_TARGET_TOKEN_GCP }}
          new-cluster-json: >
            {
-             "num_workers": 1,
-             "spark_version": "10.4.x-scala2.12",
-             "node_type_id": "n1-highmem-4",
-             “gcp_attributes”: {"availability": "ON_DEMAND_GCP"}
-           }
+              "num_workers": 1,
+              "spark_version": "10.4.x-scala2.12",
+              "node_type_id": "n1-highmem-4",
+              "gcp_attributes": {
+                "availability": "ON_DEMAND_GCP"
+              }
+            }
          notebook-params-json: >
            {
             "run_job": "True"
