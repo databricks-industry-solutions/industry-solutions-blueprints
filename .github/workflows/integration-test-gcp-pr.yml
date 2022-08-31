@@ -1,4 +1,4 @@
-name: GCP integration test
+name: GCP integration test PR
 
 on:
  pull_request:
