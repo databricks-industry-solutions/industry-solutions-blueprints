@@ -1,4 +1,4 @@
-name: MSA integration test
+name: MSA integration test PR
 on:
  pull_request:
 
@@ -12,8 +12,7 @@ jobs:
        uses: databricks/run-notebook@v0
        with:
          local-notebook-path: RUNME.py
-         git-commit: ${{ github.sha }}
-         workspace-temp-dir: /Users/jingting.lu@databricks.com/
+         git-commit: ${{ github.event.pull_request.head.sha }}
          databricks-host: ${{ secrets.DEPLOYMENT_TARGET_URL_MSA }}
          databricks-token: ${{ secrets.DEPLOYMENT_TARGET_TOKEN_MSA }}
          new-cluster-json: >
