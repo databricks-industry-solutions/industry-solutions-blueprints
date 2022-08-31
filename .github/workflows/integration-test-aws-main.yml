@@ -3,7 +3,8 @@ name: AWS integration test main
 on:
  workflow_dispatch:
  push:
-
+    branches:
+      - main
 
 jobs:
  run-databricks-notebook:
