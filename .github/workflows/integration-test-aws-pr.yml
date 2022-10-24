@@ -21,7 +21,9 @@ jobs:
              "num_workers": 0,
              "spark_version": "10.4.x-scala2.12",
              "node_type_id": "i3.xlarge",
-             "aws_attributes": {"availability": "ON_DEMAND"},
+             "aws_attributes": {
+                 "availability": "ON_DEMAND"
+              },
              "spark_conf": {
                   "spark.master": "local[*, 4]",
                   "spark.databricks.cluster.profile": "singleNode"
