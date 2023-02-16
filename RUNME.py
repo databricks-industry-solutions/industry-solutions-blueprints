@@ -37,7 +37,8 @@ job_json = {
         "max_concurrent_runs": 1,
         "tags": {
             "usage": "solacc_testing",
-            "group": "SOLACC"
+            "group": "SOLACC",
+            "accelerator": "sample-solacc"
         },
         "tasks": [
             {
@@ -71,7 +72,9 @@ job_json = {
                     "num_workers": 2,
                     "node_type_id": {"AWS": "i3.xlarge", "MSA": "Standard_DS3_v2", "GCP": "n1-highmem-4"},
                     "custom_tags": {
-                        "usage": "solacc_testing"
+                        "usage": "solacc_testing",
+                        "group": "SOLACC",
+                        "accelerator": "sample-solacc"
                     },
                 }
             }
