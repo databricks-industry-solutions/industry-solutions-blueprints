@@ -17,7 +17,7 @@
 # MAGIC ## Initialization & Intake: Before spending any time contributing to an accelerator
 # MAGIC ❓ If you brought your own code, can you summarize what problem your code solves in less than 100 words?
 # MAGIC 
-# MAGIC ❓  Have you discussed the topic with a Technical Director? If you are not sure which vertical your work is best suited for, contact [@nicole.lu](https://databricks.enterprise.slack.com/team/jingting_lu) for an intake consultation. The Technical Directors are:
+# MAGIC ❓  Have you discussed the topic with a Technical Director? Technical directors should approve solution accelerators and plan for their release on their industry roadmap. If you are not sure which vertical your work is best suited for, contact [@nicole.lu](https://databricks.enterprise.slack.com/team/jingting_lu) for an intake consultation. The Technical Directors are:
 # MAGIC   * Retail CPG: Bryan Smith 
 # MAGIC   * Financial Services: Antoine Amend, Eon Retief
 # MAGIC   * Media Entertainment: Dan Morris
