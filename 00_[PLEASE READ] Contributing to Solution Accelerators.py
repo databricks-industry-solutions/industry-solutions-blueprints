@@ -10,11 +10,10 @@
 # MAGIC 
 # MAGIC <img src='https://github.com/databricks-industry-solutions/.github/raw/main/profile/Solution%20Accelerator%20FY24.jpg'></img>
 # MAGIC 
+# MAGIC ___
 # MAGIC Maintainer: [@nicole.lu](https://databricks.enterprise.slack.com/team/jingting_lu)
-
-# COMMAND ----------
-
-# MAGIC %md
+# MAGIC ___
+# MAGIC 
 # MAGIC ## Intake
 # MAGIC ❓ If you brought your own code, can you summarize what problem your code solves in less than 100 words? 
 # MAGIC   * Does it tackle an industry **business use case**, or a common industry **technical challenge**
@@ -41,10 +40,9 @@
 # MAGIC   * You may need to provide a blog post, video recording or slides. The technical director will discuss and decide which **publishing tier** the accelerator will be launched at. The **publishing tier** determines the full scope and the list of final deliverables for the accelerator. Higher tiers may require a blog post, slides, video recording and more. The industry vertical will lean in with marketing resources if they decide to publish the accelerator at a higher tier 💪
 # MAGIC   
 # MAGIC <img src='https://raw.githubusercontent.com/databricks-industry-solutions/.github/main/profile/Solution%20Accelerator%20FY24%20(1).jpg'></img>
-
-# COMMAND ----------
-
-# MAGIC %md 
+# MAGIC ___
+# MAGIC 
+# MAGIC 
 # MAGIC ## Commit: Before the First Code Review
 # MAGIC 
 # MAGIC ❓  Do you know how you will be collaborating with reviewers and other contributors on this code? 
@@ -64,10 +62,9 @@
 # MAGIC - **Util and configuration notebooks** can be stored `./util` and `./config` directories.  Example util notebooks for common tasks such as **preparing source data** and **centralizing configuration** are available in this repo and they are reused in almost every accelerator. You can save time by modifying and reusing these standard components.
 # MAGIC - **Dashboards** can be saved in `./dashboard` directory and created in the `RUNME` notebook. See an example in the `RUNME` notebook in this repository. The dashboard import feature is in private preview and enabled on the [e2-demo-field-eng workspace](https://e2-demo-field-eng.cloud.databricks.com/?o=1444828305810485).
 # MAGIC - **Images and other arbitrary files** can be stored in `./images/` and `./resources/` directories if they are not large (less than 1 mb). Imagines can be embedded via its Github url, which will work once the repository is made public. Do not use relative paths like `./images/image.png` in either notebooks or the README.md file - see the images throughout this notebook for examples.  Larger resources can be stored in a public storage account, such as , such as `s3://db-gtm-industry-solutions/`
-
-# COMMAND ----------
-
-# MAGIC %md 
+# MAGIC 
+# MAGIC ___
+# MAGIC 
 # MAGIC ## Standardization: Before Reviewing with Technical Directors and other Collaborators
 # MAGIC 
 # MAGIC ❓ Have you read a few accelerators and familiarized with the style? Here are some great recent examples: [IOC matching accelerator](https://github.com/databricks-industry-solutions/ioc-matching) from Cyber Security, [Pixels accelerator](https://github.com/databricks-industry-solutions/pixels) from HLS, [ALS Recommender accelerator](https://github.com/databricks-industry-solutions/als-recommender) from RCG.
@@ -78,10 +75,9 @@
 # MAGIC   * Create a [**pull request**](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests) from your branch into main. The creation of pull request triggers integration tests in multiple workspaces. [Example](https://github.com/databricks-industry-solutions/media-mix-modeling/actions)
 # MAGIC   
 # MAGIC ❓ Have you resolved all integration test errors? If you have issues seeing integration run histories for debugging, slack [@nicole.lu](https://databricks.enterprise.slack.com/team/jingting_lu) for help.
-
-# COMMAND ----------
-
-# MAGIC %md 
+# MAGIC 
+# MAGIC ___
+# MAGIC 
 # MAGIC ## Publication: Before the Content is Made Publically Visible
 # MAGIC 
 # MAGIC Accelerators must be reviewed with the sponsoring Technical Director and 1 other technical SME. The SME can be a lead of the SME groups (ML-SME etc) or a vertical lead SA. 
@@ -98,10 +94,9 @@
 # MAGIC * CME: Bryan Saftler
 # MAGIC * HLS: Adam Crown
 # MAGIC * Public Sector: Lisa Sion
-
-# COMMAND ----------
-
-# MAGIC %md 
+# MAGIC 
+# MAGIC ---
+# MAGIC 
 # MAGIC  If your answers are yes to all the above ... 
 # MAGIC ## 🍻 Congratulations! You have successfully published a solution accelerator. 
 # MAGIC 
@@ -110,10 +105,9 @@
 # MAGIC * May be showcased on our Marketplace
 # MAGIC * May be used in training material
 # MAGIC * Maybe implemented by our Professional Services, Cloud Partners, SIs and have many more channels of influence.
-
-# COMMAND ----------
-
-# MAGIC %md
+# MAGIC 
+# MAGIC ___
+# MAGIC 
 # MAGIC ## Maintenance, Feedback and Continued Improvement
 # MAGIC ❗ If you know of a customer who benefited from an accelerator, you or the account team should fill out the customer use capture form [here](https://docs.google.com/forms/d/1Seo5dBNYsLEK7QgZ1tzPvuA9rxXxr1Sh_2cwu9hM9gM/edit) 📋
 # MAGIC 
@@ -122,6 +116,10 @@
 # MAGIC ❗ [@nicole.lu](https://databricks.enterprise.slack.com/team/jingting_lu) may reach out for help if some hard-to-resolve bugs arose from nightly testing 🪲
 # MAGIC 
 # MAGIC ❗ Users may open issues to ask questions about the accelerator. Users may also contribute to solution accelerators as long as they accept our Contributing License Agreement. We have an automated process in place and the external collaborator can accept the Contributing License Agreement on their own. 🤝
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
