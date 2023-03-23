@@ -30,7 +30,8 @@
 # MAGIC   * Public Sector: No Technical Director but Field Eng owns content curation and development. Reach out to Milos Colic
 # MAGIC   
 # MAGIC ❓ Do we have the rights to use the source datasets and libraries in your code?
-# MAGIC - Please fill out the dependency-license table in the README. Make sure our dependencies are open source. If we need to use some written documentation to substantiate our rights to use any data or code dependency, file a legal review ticket 
+# MAGIC - Please fill out the dependency-license table in the README. Make sure our dependencies are **permissive** open source. Permissive open source licenses include MIT, Apache and BSD. See `go/opensource` for more details.  
+# MAGIC - If we need to use some written documentation to substantiate our rights to use any idea, data or code dependency, file a legal review ticket 
 # MAGIC - If you need to synthesize and store some source data, use a publically accessible cloud storage, such as `s3://db-gtm-industry-solutions/data/`
 # MAGIC 
 # MAGIC ❓ Is the code reusable by a broad array of customers? No customer-specific implementation details please.
