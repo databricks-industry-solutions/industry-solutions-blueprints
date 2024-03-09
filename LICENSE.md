@@ -1,6 +1,5 @@
-[Project Name]
-
-Copyright (2022) Databricks, Inc.
+%md
+Copyright (2024) Databricks, Inc.
 
 This library (the "Software") may not be used except in connection with the Licensee's use of the Databricks Platform Services pursuant
 to an Agreement (defined below) between Licensee (defined below) and Databricks, Inc. ("Databricks"). The Object Code version of the
@@ -12,6 +11,7 @@ accordance with any applicable documentation. For the avoidance of doubt, the So
 under the Agreement.
 
 Additionally, and notwithstanding anything in the Agreement to the contrary:
+
 * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
   LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
