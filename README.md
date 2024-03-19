@@ -2,7 +2,6 @@
 
 [![DBR](https://img.shields.io/badge/DBR-CHANGE_ME-red?logo=databricks&style=for-the-badge)](https://docs.databricks.com/release-notes/runtime/CHANGE_ME.html)
 [![CLOUD](https://img.shields.io/badge/CLOUD-CHANGE_ME-blue?logo=googlecloud&style=for-the-badge)](https://databricks.com/try-databricks)
-[![POC](https://img.shields.io/badge/POC-CHANGE_ME-green?style=for-the-badge)](https://databricks.com/try-databricks)
 
 ## Business Problem
 WHAT IS THE BUSINESS PROBLEM ADDRESSED BY THIS SOLUTION
