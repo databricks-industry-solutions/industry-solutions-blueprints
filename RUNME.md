@@ -1,3 +1,0 @@
-# Run me...
-
-Guiding users through implementation details. This may contain gotchas', code snippets and / or general guidance expressed as markdown.
