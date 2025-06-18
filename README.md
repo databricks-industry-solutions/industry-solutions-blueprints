@@ -1,26 +1,89 @@
-<img src=https://raw.githubusercontent.com/databricks-industry-solutions/.github/main/profile/solacc_logo.png width="600px">
+# Databricks Asset Bundles (DABs) Demo Template
 
-[![DBR](https://img.shields.io/badge/DBR-CHANGE_ME-red?logo=databricks&style=for-the-badge)](https://docs.databricks.com/release-notes/runtime/CHANGE_ME.html)
-[![CLOUD](https://img.shields.io/badge/CLOUD-CHANGE_ME-blue?logo=googlecloud&style=for-the-badge)](https://databricks.com/try-databricks)
+A clean, minimal template for migrating existing projects to Databricks Asset Bundles format.
 
-## Business Problem
-WHAT IS THE BUSINESS PROBLEM ADDRESSED BY THIS SOLUTION
+## Quick Start
 
-## Reference Architecture
-IMAGE TO REFERENCE ARCHITECTURE
+1. **Prerequisites**
+   ```bash
+   pip install databricks-cli
+   ```
 
-## Authors
-<john.doe@databricks.com>
+2. **Configure Databricks**
+   ```bash
+   # Option A: Use databricks configure (interactive)
+   databricks configure
+   
+   # Option B: Use environment file (recommended for CI/CD)
+   cp env.example .env
+   # Edit .env with your Databricks workspace URL, token, and warehouse ID
+   # Get warehouse ID from: Databricks → SQL Warehouses → Copy warehouse ID
+   ```
 
-## Project support 
+3. **Deploy Everything**
+   ```bash
+   ./scripts/deploy.sh
+   ```
 
-Please note the code in this project is provided for your exploration only, and are not formally supported by Databricks with Service Level Agreements (SLAs). They are provided AS-IS and we do not make any guarantees of any kind. Please do not submit a support ticket relating to any issues arising from the use of these projects. The source in this project is provided subject to the Databricks [License](./LICENSE.md). All included or referenced third party libraries are subject to the licenses set forth below.
+4. **Clean Up When Done**
+   ```bash
+   ./scripts/cleanup.sh
+   ```
 
-Any issues discovered through the use of this project should be filed as GitHub Issues on the Repo. They will be reviewed as time permits, but there are no formal SLAs for support. 
+## CI/CD Setup (Optional)
 
-## License
+To enable automatic testing on Pull Requests:
 
-&copy; 2024 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License [https://databricks.com/db-license-source].  All included or referenced third party libraries are subject to the licenses set forth below.
+1. **Add GitHub Repository Secrets**:
+   - Go to your repo → Settings → Secrets and variables → Actions
+   - Add secret: `DATABRICKS_TOKEN` (your Databricks token)
+   - Optionally add variable: `DATABRICKS_HOST` (defaults to `https://e2-demo-field-eng.cloud.databricks.com/`)
 
-| library                                | description             | license    | source                                              |
-|----------------------------------------|-------------------------|------------|-----------------------------------------------------|
+2. **What happens automatically**:
+   - **Pull Requests**: Validated and tested with isolated workspace paths
+   - **Main branch**: Deployed to your dev environment
+   - **PR cleanup**: Resources automatically cleaned up when PR is closed
+
+## What Gets Deployed
+
+- **Workflow**: `Databricks Demo Deployment Example - Two Simple Notebooks` 
+- **Notebooks**: `notebook1.ipynb` → `notebook2.ipynb` (sequential execution)
+- **Dashboard**: `Demo Dashboard` (deployed alongside notebooks)
+- **App**: `demo-app` (Simple Streamlit app)
+- **Location**: `/Workspace/Users/your-email@company.com/dbx-dabs-demo-dev/`
+
+## Manual Commands (if you prefer)
+
+```bash
+databricks bundle validate    # Check configuration
+databricks bundle deploy      # Deploy to workspace
+databricks bundle run demo_workflow # Run the demo workflow
+databricks bundle summary     # See what's deployed
+databricks bundle destroy     # Remove everything
+```
+
+## Customizing for Your Project
+
+1. Update `databricks.yml` with your job/notebook names
+2. Replace `notebooks/notebook1.ipynb` and `notebooks/notebook2.ipynb` with your notebooks
+3. Modify the workspace `host` and `root_path` as needed
+
+## Project Structure
+
+```
+├── databricks.yml           # Main DABs configuration
+├── notebooks/
+│   ├── notebook1.ipynb      # First notebook
+│   └── notebook2.ipynb      # Second notebook (runs after first)
+├── dashboards/
+│   └── dashboard_example.lvdash.json  # Demo dashboard
+├── apps/
+│   └── demo_app/
+│       ├── app.py                     # Streamlit app
+│       └── app.yaml                   # App configuration
+└── scripts/
+    ├── deploy.sh           # Automated deployment
+    └── cleanup.sh          # Automated cleanup
+```
+
+That's it! 🚀 

@@ -1,0 +1,83 @@
+bundle:
+  name: dbx-dabs-demo
+
+variables:
+  environment:
+    description: "Environment identifier (e.g., pr-123)"
+    default: "dev"
+  warehouse_id:
+    description: "Databricks SQL warehouse ID for dashboards (required for dashboard deployment)"
+
+targets:
+  dev:
+    workspace:
+      root_path: "/Users/${workspace.current_user.userName}/dbx-dabs-demo-${var.environment}"
+    default: true
+
+# See more about resource configuration at https://docs.databricks.com/aws/en/dev-tools/bundles/resources
+resources:
+  apps:
+    demo_app:
+      name: "demo-app"
+      description: "Simple Streamlit demo app"
+      source_code_path: "/Users/${workspace.current_user.userName}/dbx-dabs-demo-${var.environment}/files/apps/demo_app"
+
+  dashboards:
+    demo_dashboard:
+      display_name: "Demo Dashboard"
+      file_path: "./dashboards/dashboard_example.lvdash.json"
+      warehouse_id: "${var.warehouse_id}"
+
+# This is the installation workflow. It will be run when the bundle is deployed.
+  jobs:
+    demo_workflow:
+      name: "Databricks Demo Deployment Example - Two Simple Notebooks"
+      tasks:
+        - task_key: notebook1
+          notebook_task:
+            notebook_path: "./notebooks/notebook1.ipynb"
+        - task_key: notebook2
+          depends_on:
+            - task_key: notebook1
+          notebook_task:
+            notebook_path: "./notebooks/notebook2.ipynb"
+
+# Example resources you can uncomment and customize:
+# resources:
+#   apps:
+#     your_app:
+#       name: "your-app-name"
+#       description: "Your app description"
+#       source_code_path: "./apps/your_app"
+#
+#   jobs:
+#     your_workflow:
+#       name: "Your Workflow Name"
+#       tasks:
+#         - task_key: first_task
+#           notebook_task:
+#             notebook_path: "./notebooks/your_first_notebook.ipynb"
+#         - task_key: second_task
+#           depends_on:
+#             - task_key: first_task
+#           notebook_task:
+#             notebook_path: "./notebooks/your_second_notebook.ipynb"
+#
+#   pipelines:
+#     your_pipeline:
+#       name: "Your Pipeline"
+#       storage: "/Shared/your-pipeline"
+#       configuration:
+#         your_config: "value"
+#
+#   models:
+#     your_model:
+#       name: "Your Model"
+#       model_path: "models/your_model"
+#
+#   dashboards:
+#     your_dashboard:
+#       display_name: "Your Dashboard"
+#       file_path: "./dashboards/your_dashboard.lvdash.json"
+
+# For more options and schema, see: https://docs.databricks.com/aws/en/dev-tools/bundles/settings

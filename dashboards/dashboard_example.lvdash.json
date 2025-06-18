@@ -1,0 +1,26 @@
+{
+    "pages": [
+        {
+            "name": "a88fe46f",
+            "displayName": "Dashboard",
+            "layout": [
+                {
+                    "widget": {
+                        "name": "e506ce93",
+                        "textbox_spec": "# This is an example Databricks Dashboard!\n\nIf you are seeing this, it means that your Databricks Demo Project deployed correctly! Hurray!"
+                    },
+                    "position": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 6,
+                        "height": 4
+                    }
+                }
+            ],
+            "pageType": "PAGE_TYPE_CANVAS"
+        }
+    ],
+    "uiSettings": {
+        "theme": {}
+    }
+}
