@@ -20,6 +20,20 @@ jobs:
          git-commit: ${{ github.sha }}
          databricks-host: ${{ vars.DATABRICKS_HOST || 'https://e2-demo-field-eng.cloud.databricks.com/' }}
          databricks-token: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+         new-cluster-json: >
+           {
+             "data_security_mode": "DATA_SECURITY_MODE_AUTO",
+             "cluster_name": "e2demonotebookdeploy",
+             "kind": "CLASSIC_PREVIEW",
+             "aws_attributes": {
+               "zone_id": "auto"
+             },
+             "runtime_engine": "STANDARD",
+             "spark_version": "16.4.x-scala2.13",
+             "node_type_id": "rd-fleet.xlarge",
+             "autotermination_minutes": 10,
+             "is_single_node": true
+           }
          access-control-list-json: >
            [
              {
@@ -27,3 +41,4 @@ jobs:
                "permission_level": "CAN_VIEW"
              }
            ]
+
