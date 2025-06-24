@@ -1,0 +1,29 @@
+name: AWS Notebook Deploy
+
+on:
+ workflow_dispatch:
+ push:
+    branches:
+      - main
+      - feature/simplenotebook
+
+jobs:
+ run-databricks-notebook:
+   runs-on: html_publisher
+   steps:
+     - name: Checkout repo
+       uses: actions/checkout@v2
+     - name: Run a databricks notebook
+       uses: databricks/run-notebook@v0
+       with:
+         local-notebook-path: notebook1.ipynb
+         git-commit: ${{ github.sha }}
+         databricks-host: ${{ vars.DATABRICKS_HOST || 'https://e2-demo-field-eng.cloud.databricks.com/' }}
+         databricks-token: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+         access-control-list-json: >
+           [
+             {
+               "group_name": "users",
+               "permission_level": "CAN_VIEW"
+             }
+           ]
