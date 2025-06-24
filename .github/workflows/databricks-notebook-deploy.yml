@@ -31,7 +31,6 @@ jobs:
              "runtime_engine": "STANDARD",
              "spark_version": "16.4.x-scala2.13",
              "node_type_id": "rd-fleet.xlarge",
-             "autotermination_minutes": 10,
              "is_single_node": true
            }
          access-control-list-json: >
