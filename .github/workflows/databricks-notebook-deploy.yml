@@ -23,7 +23,6 @@ jobs:
          new-cluster-json: >
            {
              "data_security_mode": "DATA_SECURITY_MODE_AUTO",
-             "cluster_name": "e2demonotebookdeploy",
              "kind": "CLASSIC_PREVIEW",
              "aws_attributes": {
                "zone_id": "auto"
