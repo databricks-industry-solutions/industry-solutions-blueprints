@@ -27,11 +27,11 @@ jobs:
       - name: Configure Databricks CLI
         env:
           DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST || 'https://e2-demo-field-eng.cloud.databricks.com/' }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}   
         run: |
-          if [ -z "$DATABRICKS_TOKEN" ]; then
-            echo "❌ DATABRICKS_TOKEN secret not found!"
-            echo "Please add DATABRICKS_TOKEN to your repository secrets."
+          if [ -z "$DEPLOY_NOTEBOOK_TOKEN" ]; then
+            echo "❌ DEPLOY_NOTEBOOK_TOKEN secret not found!"
+            echo "Please add DEPLOY_NOTEBOOK_TOKEN to your repository secrets."
             echo "See README.md for setup instructions."
             exit 1
           fi
