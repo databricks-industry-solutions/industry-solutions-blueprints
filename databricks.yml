@@ -1,18 +1,18 @@
 bundle:
   name: dbx-dabs-demo
 
+
 variables:
-  environment:
-    description: "Environment identifier (e.g., pr-123)"
-    default: "dev"
+  # The "warehouse_id" variable is used to reference the warehouse used by the dashboard.
   warehouse_id:
-    description: "Databricks SQL warehouse ID for dashboards (required for dashboard deployment)"
+    lookup:
+      # Replace this with the name of your SQL warehouse.
+      warehouse: "Shared Unity Catalog Severless"
 
 targets:
-  dev:
-    workspace:
-      root_path: "/Users/${workspace.current_user.userName}/dbx-dabs-demo-${var.environment}"
-    default: true
+  workspace:
+    root_path: "/Users/${workspace.current_user.userName}/dbx-dabs-demo-${var.environment}"
+  default: true
 
 # See more about resource configuration at https://docs.databricks.com/aws/en/dev-tools/bundles/resources
 resources:
