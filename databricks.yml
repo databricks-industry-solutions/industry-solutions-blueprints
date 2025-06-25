@@ -10,9 +10,9 @@ variables:
       warehouse: "Shared Unity Catalog Severless"
 
 targets:
-  workspace:
-    root_path: "/Users/${workspace.current_user.userName}/dbx-dabs-demo-${var.environment}"
-  default: true
+  dev:
+    default: true
+    mode: development
 
 # See more about resource configuration at https://docs.databricks.com/aws/en/dev-tools/bundles/resources
 resources:
