@@ -33,11 +33,11 @@ jobs:
           # DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
           # DATABRICKS_ACCOUNT_ID: ${{ secrets.DATABRICKS_ACCOUNT_ID }}  # Optional, only needed for account-level operations
 
-        - name: Configure Databricks CLI authentication
-          run: |
-            echo "[DEFAULT]" > ~/.databrickscfg
-            echo "host = https://e2-demo-field-eng.cloud.databricks.com" >> ~/.databrickscfg
-            echo "token = ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}" >> ~/.databrickscfg
+      - name: Configure Databricks CLI authentication
+        run: |
+          echo "[DEFAULT]" > ~/.databrickscfg
+          echo "host = https://e2-demo-field-eng.cloud.databricks.com" >> ~/.databrickscfg
+          echo "token = ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}" >> ~/.databrickscfg
 
       - name: Validate bundle
         run: databricks bundle validate
