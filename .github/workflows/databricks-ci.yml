@@ -2,14 +2,18 @@ name: Databricks Asset Bundles CI
 
 on:
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+      - feature/dabsdeploy
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - feature/dabsdeploy
 
 jobs:
   validate-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,27 +23,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Databricks CLI
-        run: |
-          pip install --upgrade pip
-          pip install databricks-cli
-
-      - name: Configure Databricks CLI
+      - name: Set up Databricks CLI
+        uses: databricks/setup-cli@main
+        with:
+          version: v0.208.0  # Or latest stable
         env:
-          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST || 'https://e2-demo-field-eng.cloud.databricks.com/' }}
-          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}   
-        run: |
-          if [ -z "$DEPLOY_NOTEBOOK_TOKEN" ]; then
-            echo "❌ DEPLOY_NOTEBOOK_TOKEN secret not found!"
-            echo "Please add DEPLOY_NOTEBOOK_TOKEN to your repository secrets."
-            echo "See README.md for setup instructions."
-            exit 1
-          fi
-          cat > ~/.databrickscfg << EOF
-          [DEFAULT]
-          host = $DATABRICKS_HOST
-          token = $DATABRICKS_TOKEN
-          EOF
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST_TERRAFORM_WORKFLOW }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID_TERRAFORM_WORKFLOW }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET_TERRAFORM_WORKFLOW }}
 
       - name: Validate bundle
         run: databricks bundle validate
@@ -47,7 +38,6 @@ jobs:
       - name: Deploy to CI environment
         if: github.event_name == 'pull_request'
         run: |
-          # Create a unique target for this PR
           export PR_NUMBER=${{ github.event.number }}
           databricks bundle deploy --target dev --var="environment=pr-${PR_NUMBER}"
 
@@ -65,6 +55,4 @@ jobs:
         if: github.event_name == 'pull_request' && github.event.action == 'closed'
         run: |
           export PR_NUMBER=${{ github.event.number }}
-          databricks bundle destroy --target dev --var="environment=pr-${PR_NUMBER}" || true 
-
-          
+          databricks bundle destroy --target dev --var="environment=pr-${PR_NUMBER}" || true
