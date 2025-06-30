@@ -66,3 +66,5 @@ jobs:
         run: |
           export PR_NUMBER=${{ github.event.number }}
           databricks bundle destroy --target dev --var="environment=pr-${PR_NUMBER}" || true 
+
+          
