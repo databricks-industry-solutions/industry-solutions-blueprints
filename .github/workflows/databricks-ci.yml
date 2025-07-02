@@ -60,7 +60,7 @@ jobs:
           try:
               data = json.load(sys.stdin)
               name = args.name
-              if 'warehouses' in data:  # Changed from 'results' to 'warehouses'
+              if 'warehouses' in data:
                   warehouses = data['warehouses']
                   matching = [w for w in warehouses if w['name'] == name]
                   if matching:
@@ -100,14 +100,8 @@ jobs:
           
           echo "Using warehouse with ID: $WAREHOUSE_ID"
           echo "WAREHOUSE_ID=$WAREHOUSE_ID" >> $GITHUB_ENV
-
-      - name: Set environment variable
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "DEPLOY_ENV=pr-${{ github.event.number }}" >> $GITHUB_ENV
-          else
-            echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
-          fi
+          # Set default environment to dev
+          echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
 
       - name: Validate bundle
         run: databricks bundle validate --var="environment=${{ env.DEPLOY_ENV }}"
