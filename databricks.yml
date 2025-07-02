@@ -8,6 +8,11 @@ variables:
     lookup:
       # Replace this with the name of your SQL warehouse.
       warehouse: "Shared Unity Catalog Serverless"
+      
+  # Environment variable used for deployment paths
+  environment:
+    description: "Deployment environment (dev, staging, prod)"
+    default: "dev"
 
 targets:
   dev:
