@@ -43,11 +43,32 @@ jobs:
           WAREHOUSE_NAME="Shared Unity Catalog Serverless"
           
           # First try to get existing warehouse
+          echo "Fetching existing warehouses..."
           EXISTING_WAREHOUSE=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" \
             "$DATABRICKS_HOST/api/2.0/sql/warehouses")
           
-          # Try to get ID of existing warehouse
-          WAREHOUSE_ID=$(echo $EXISTING_WAREHOUSE | python3 -c "import sys, json; data = json.load(sys.stdin); warehouses = data.get('results', []); matching = [w for w in warehouses if w['name'] == '${WAREHOUSE_NAME}']; print(matching[0]['id'] if matching else '')")
+          # Debug output
+          echo "Warehouse List Response: $(echo $EXISTING_WAREHOUSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
+          
+          # Try to get ID of existing warehouse with better error handling
+          WAREHOUSE_ID=$(echo $EXISTING_WAREHOUSE | python3 -c '
+          import sys, json, os
+          try:
+              data = json.load(sys.stdin)
+              name = os.environ["WAREHOUSE_NAME"]
+              if "results" in data:
+                  warehouses = data["results"]
+                  matching = [w for w in warehouses if w["name"] == name]
+                  if matching:
+                      print(matching[0]["id"])
+                  else:
+                      print("")
+              else:
+                  print("")
+          except Exception as e:
+              print(f"Error parsing response: {str(e)}", file=sys.stderr)
+              print("")
+          ')
           
           # If warehouse doesn't exist, create it
           if [ -z "$WAREHOUSE_ID" ]; then
@@ -67,7 +88,7 @@ jobs:
             echo "Create API Response: $(echo $RESPONSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
             WAREHOUSE_ID=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
           else
-            echo "Found existing warehouse"
+            echo "Found existing warehouse with ID: $WAREHOUSE_ID"
           fi
           
           # Validate we got an ID
