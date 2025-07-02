@@ -51,24 +51,19 @@ jobs:
           echo "Warehouse List Response: $(echo $EXISTING_WAREHOUSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
           
           # Try to get ID of existing warehouse with better error handling
-          WAREHOUSE_ID=$(echo $EXISTING_WAREHOUSE | python3 -c '
-          import sys, json, os
-          try:
-              data = json.load(sys.stdin)
-              name = os.environ["WAREHOUSE_NAME"]
-              if "results" in data:
-                  warehouses = data["results"]
-                  matching = [w for w in warehouses if w["name"] == name]
-                  if matching:
-                      print(matching[0]["id"])
-                  else:
-                      print("")
+          WAREHOUSE_ID=$(echo "$EXISTING_WAREHOUSE" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          target_name = 'Shared Unity Catalog Serverless'
+          if 'warehouses' in data:
+              matching = [w for w in data['warehouses'] if w['name'] == target_name]
+              if matching:
+                  print(matching[0]['id'])
               else:
-                  print("")
-          except Exception as e:
-              print(f"Error parsing response: {str(e)}", file=sys.stderr)
-              print("")
-          ')
+                  print('')
+          else:
+              print('')
+          ")
           
           # If warehouse doesn't exist, create it
           if [ -z "$WAREHOUSE_ID" ]; then
