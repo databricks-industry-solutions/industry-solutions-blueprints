@@ -47,13 +47,7 @@ jobs:
             "$DATABRICKS_HOST/api/2.0/sql/warehouses")
           
           # Try to get ID of existing warehouse
-          WAREHOUSE_ID=$(echo $EXISTING_WAREHOUSE | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-warehouses = data.get('results', [])
-matching = [w for w in warehouses if w['name'] == '${WAREHOUSE_NAME}']
-print(matching[0]['id'] if matching else '')
-")
+          WAREHOUSE_ID=$(echo $EXISTING_WAREHOUSE | python3 -c "import sys, json; data = json.load(sys.stdin); warehouses = data.get('results', []); matching = [w for w in warehouses if w['name'] == '${WAREHOUSE_NAME}']; print(matching[0]['id'] if matching else '')")
           
           # If warehouse doesn't exist, create it
           if [ -z "$WAREHOUSE_ID" ]; then
