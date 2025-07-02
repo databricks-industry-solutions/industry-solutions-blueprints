@@ -42,7 +42,7 @@ jobs:
         run: |
           WAREHOUSE_NAME="Shared Unity Catalog Serverless"
           # Create warehouse using REST API
-          WAREHOUSE_ID=$(curl -s -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+          RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
             -H "Content-Type: application/json" \
             "$DATABRICKS_HOST/api/2.0/sql/warehouses" \
             -d "{
@@ -50,8 +50,23 @@ jobs:
               \"cluster_size\": \"2X-Small\",
               \"enable_serverless_compute\": true,
               \"auto_stop_mins\": 10
-            }" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+            }")
+          
+          # Print response for debugging (masking the sensitive parts)
+          echo "API Response: $(echo $RESPONSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
+          
+          # Extract warehouse ID
+          WAREHOUSE_ID=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+          
+          # Validate we got an ID
+          if [ -z "$WAREHOUSE_ID" ]; then
+            echo "Error: Failed to get warehouse ID from response"
+            exit 1
+          fi
+          
           echo "Created warehouse with ID: $WAREHOUSE_ID"
+          # Export ID for subsequent steps
+          echo "WAREHOUSE_ID=$WAREHOUSE_ID" >> $GITHUB_ENV
 
       - name: Validate bundle
         run: databricks bundle validate
