@@ -119,8 +119,10 @@ jobs:
         run: |
           # Run the workflow and capture the run ID
           echo "Starting workflow execution..."
-          RUN_OUTPUT=$(databricks bundle run demo_workflow --target dev --var="environment=${{ env.DEPLOY_ENV }}" --output json)
-          RUN_ID=$(echo "$RUN_OUTPUT" | python3 -c "import sys, json; print(json.load(sys.stdin).get('run_id', ''))")
+          RUN_OUTPUT=$(databricks bundle run demo_workflow --target dev --var="environment=${{ env.DEPLOY_ENV }}")
+          
+          # Extract run ID from the Run URL using grep and sed
+          RUN_ID=$(echo "$RUN_OUTPUT" | grep "Run URL:" | sed -n 's/.*run\/\([0-9]*\)/\1/p')
           
           if [ -z "$RUN_ID" ]; then
             echo "Error: Failed to get run ID"
@@ -214,8 +216,10 @@ jobs:
         run: |
           # Run the workflow and capture the run ID
           echo "Starting production workflow execution..."
-          RUN_OUTPUT=$(databricks bundle run demo_workflow --target dev --var="environment=${{ env.DEPLOY_ENV }}" --output json)
-          RUN_ID=$(echo "$RUN_OUTPUT" | python3 -c "import sys, json; print(json.load(sys.stdin).get('run_id', ''))")
+          RUN_OUTPUT=$(databricks bundle run demo_workflow --target dev --var="environment=${{ env.DEPLOY_ENV }}")
+          
+          # Extract run ID from the Run URL using grep and sed
+          RUN_ID=$(echo "$RUN_OUTPUT" | grep "Run URL:" | sed -n 's/.*run\/\([0-9]*\)/\1/p')
           
           if [ -z "$RUN_ID" ]; then
             echo "Error: Failed to get run ID"
