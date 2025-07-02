@@ -35,37 +35,54 @@ jobs:
           echo "host = https://e2-demo-field-eng.cloud.databricks.com" >> ~/.databrickscfg
           echo "token = ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}" >> ~/.databrickscfg
 
-      - name: Create serverless SQL warehouse
+      - name: Get or Create serverless SQL warehouse
         env:
           DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
           DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
         run: |
           WAREHOUSE_NAME="Shared Unity Catalog Serverless"
-          # Create warehouse using REST API
-          RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
-            -H "Content-Type: application/json" \
-            "$DATABRICKS_HOST/api/2.0/sql/warehouses" \
-            -d "{
-              \"name\": \"${WAREHOUSE_NAME}\",
-              \"cluster_size\": \"2X-Small\",
-              \"enable_serverless_compute\": true,
-              \"auto_stop_mins\": 10,
-              \"max_num_clusters\": 1
-            }")
           
-          # Print response for debugging (masking the sensitive parts)
-          echo "API Response: $(echo $RESPONSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
+          # First try to get existing warehouse
+          EXISTING_WAREHOUSE=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+            "$DATABRICKS_HOST/api/2.0/sql/warehouses")
           
-          # Extract warehouse ID
-          WAREHOUSE_ID=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+          # Try to get ID of existing warehouse
+          WAREHOUSE_ID=$(echo $EXISTING_WAREHOUSE | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+warehouses = data.get('results', [])
+matching = [w for w in warehouses if w['name'] == '${WAREHOUSE_NAME}']
+print(matching[0]['id'] if matching else '')
+")
+          
+          # If warehouse doesn't exist, create it
+          if [ -z "$WAREHOUSE_ID" ]; then
+            echo "Creating new warehouse..."
+            # Create warehouse using REST API
+            RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$DATABRICKS_HOST/api/2.0/sql/warehouses" \
+              -d "{
+                \"name\": \"${WAREHOUSE_NAME}\",
+                \"cluster_size\": \"2X-Small\",
+                \"enable_serverless_compute\": true,
+                \"auto_stop_mins\": 10,
+                \"max_num_clusters\": 1
+              }")
+            
+            echo "Create API Response: $(echo $RESPONSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
+            WAREHOUSE_ID=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+          else
+            echo "Found existing warehouse"
+          fi
           
           # Validate we got an ID
           if [ -z "$WAREHOUSE_ID" ]; then
-            echo "Error: Failed to get warehouse ID from response"
+            echo "Error: Failed to get warehouse ID"
             exit 1
           fi
           
-          echo "Created warehouse with ID: $WAREHOUSE_ID"
+          echo "Using warehouse with ID: $WAREHOUSE_ID"
           # Export ID for subsequent steps
           echo "WAREHOUSE_ID=$WAREHOUSE_ID" >> $GITHUB_ENV
 
