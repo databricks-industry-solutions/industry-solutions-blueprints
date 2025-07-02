@@ -12,7 +12,7 @@ on:
 
 jobs:
   validate-and-test:
-    runs-on: html_publisher
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -28,16 +28,35 @@ jobs:
         env:
           DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
           DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
-          # To use OAuth client credentials instead of token, comment out the above line and uncomment below:
-          # DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
-          # DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-          # DATABRICKS_ACCOUNT_ID: ${{ secrets.DATABRICKS_ACCOUNT_ID }}  # Optional, only needed for account-level operations
 
       - name: Configure Databricks CLI authentication
         run: |
           echo "[DEFAULT]" > ~/.databrickscfg
           echo "host = https://e2-demo-field-eng.cloud.databricks.com" >> ~/.databrickscfg
           echo "token = ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}" >> ~/.databrickscfg
+
+      - name: Ensure serverless SQL warehouse exists
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+        run: |
+          WAREHOUSE_NAME="Shared Unity Catalog Severless"
+          # Try to get the warehouse ID by name
+          WAREHOUSE_ID=$(databricks sql warehouses list --output json | \
+            python3 -c "import sys, json; ws=json.load(sys.stdin); print(next((w['id'] for w in ws if w['name']=='${WAREHOUSE_NAME}'),''))")
+          if [ -z "$WAREHOUSE_ID" ]; then
+            echo "Warehouse '$WAREHOUSE_NAME' not found. Creating..."
+            # Create a serverless SQL warehouse (adjust cluster_size as needed)
+            WAREHOUSE_ID=$(databricks sql warehouses create \
+              --name "${WAREHOUSE_NAME}" \
+              --cluster-size 2X-Small \
+              --enable-serverless-compute true \
+              --auto-stop-mins 10 \
+              --output json | python3 -c "import sys, json; print(json.load(sys.stdin)['id'])")
+            echo "Created warehouse with ID: $WAREHOUSE_ID"
+          else
+            echo "Warehouse '$WAREHOUSE_NAME' already exists with ID: $WAREHOUSE_ID"
+          fi
 
       - name: Validate bundle
         run: databricks bundle validate
