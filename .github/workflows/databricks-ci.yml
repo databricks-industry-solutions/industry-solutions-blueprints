@@ -35,34 +35,23 @@ jobs:
           echo "host = https://e2-demo-field-eng.cloud.databricks.com" >> ~/.databrickscfg
           echo "token = ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}" >> ~/.databrickscfg
 
-
-      - name: Ensure serverless SQL warehouse exists
+      - name: Create serverless SQL warehouse
         env:
           DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
           DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
         run: |
           WAREHOUSE_NAME="Shared Unity Catalog Serverless"
-          # Try to get the warehouse ID by name using REST API
-          WAREHOUSE_ID=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" \
-            "$DATABRICKS_HOST/api/2.0/sql/warehouses" | \
-            python3 -c "import sys, json; ws=json.load(sys.stdin)['warehouses']; print(next((w['id'] for w in ws if w['name']=='${WAREHOUSE_NAME}'),''))")
-          
-          if [ -z "$WAREHOUSE_ID" ]; then
-            echo "Warehouse '$WAREHOUSE_NAME' not found. Creating..."
-            # Create warehouse using REST API
-            WAREHOUSE_ID=$(curl -s -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
-              -H "Content-Type: application/json" \
-              "$DATABRICKS_HOST/api/2.0/sql/warehouses" \
-              -d "{
-                \"name\": \"${WAREHOUSE_NAME}\",
-                \"cluster_size\": \"2X-Small\",
-                \"enable_serverless_compute\": true,
-                \"auto_stop_mins\": 10
-              }" | python3 -c "import sys, json; print(json.load(sys.stdin)['id'])")
-            echo "Created warehouse with ID: $WAREHOUSE_ID"
-          else
-            echo "Warehouse '$WAREHOUSE_NAME' already exists with ID: $WAREHOUSE_ID"
-          fi
+          # Create warehouse using REST API
+          WAREHOUSE_ID=$(curl -s -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+            -H "Content-Type: application/json" \
+            "$DATABRICKS_HOST/api/2.0/sql/warehouses" \
+            -d "{
+              \"name\": \"${WAREHOUSE_NAME}\",
+              \"cluster_size\": \"2X-Small\",
+              \"enable_serverless_compute\": true,
+              \"auto_stop_mins\": 10
+            }" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+          echo "Created warehouse with ID: $WAREHOUSE_ID"
 
       - name: Validate bundle
         run: databricks bundle validate
