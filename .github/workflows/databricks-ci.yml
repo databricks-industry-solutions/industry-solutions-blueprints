@@ -41,34 +41,41 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
         run: |
           WAREHOUSE_NAME="Shared Unity Catalog Serverless"
-          
-          # First try to get existing warehouse
+          echo "Looking for warehouse named: $WAREHOUSE_NAME"
+
           echo "Fetching existing warehouses..."
           EXISTING_WAREHOUSE=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" \
             "$DATABRICKS_HOST/api/2.0/sql/warehouses")
-          
-          # Debug output
+
           echo "Warehouse List Response: $(echo $EXISTING_WAREHOUSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
-          
-          # Try to get ID of existing warehouse with better error handling
+
           WAREHOUSE_ID=$(echo "$EXISTING_WAREHOUSE" | python3 -c "
           import sys, json
-          data = json.load(sys.stdin)
-          target_name = 'Shared Unity Catalog Serverless'
-          if 'warehouses' in data:
-              matching = [w for w in data['warehouses'] if w['name'] == target_name]
-              if matching:
-                  print(matching[0]['id'])
+          import argparse
+
+          parser = argparse.ArgumentParser()
+          parser.add_argument('--name', required=True)
+          args = parser.parse_args()
+
+          try:
+              data = json.load(sys.stdin)
+              name = args.name
+              if 'results' in data:
+                  warehouses = data['results']
+                  matching = [w for w in warehouses if w['name'] == name]
+                  if matching:
+                      print(matching[0]['id'])
+                  else:
+                      print('')
               else:
                   print('')
-          else:
+          except Exception as e:
+              print(f'Error parsing response: {str(e)}', file=sys.stderr)
               print('')
-          ")
-          
-          # If warehouse doesn't exist, create it
+          " --name "$WAREHOUSE_NAME")
+
           if [ -z "$WAREHOUSE_ID" ]; then
             echo "Creating new warehouse..."
-            # Create warehouse using REST API
             RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
               -H "Content-Type: application/json" \
               "$DATABRICKS_HOST/api/2.0/sql/warehouses" \
@@ -79,24 +86,21 @@ jobs:
                 \"auto_stop_mins\": 10,
                 \"max_num_clusters\": 1
               }")
-            
+
             echo "Create API Response: $(echo $RESPONSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
             WAREHOUSE_ID=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
           else
             echo "Found existing warehouse with ID: $WAREHOUSE_ID"
           fi
-          
-          # Validate we got an ID
+
           if [ -z "$WAREHOUSE_ID" ]; then
             echo "Error: Failed to get warehouse ID"
             exit 1
           fi
-          
+
           echo "Using warehouse with ID: $WAREHOUSE_ID"
-          # Export ID for subsequent steps
           echo "WAREHOUSE_ID=$WAREHOUSE_ID" >> $GITHUB_ENV
 
-      # Set environment variable based on context
       - name: Set environment variable
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
