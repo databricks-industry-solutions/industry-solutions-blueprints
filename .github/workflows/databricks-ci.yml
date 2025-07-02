@@ -36,7 +36,7 @@ jobs:
           echo "token = ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}" >> ~/.databrickscfg
 
       - name: Install Databricks SQL Components
-        run: databricks labs install sql
+        run: pip install databricks-sql-cli
 
       - name: Ensure serverless SQL warehouse exists
         env:
