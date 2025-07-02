@@ -42,13 +42,13 @@ jobs:
         run: |
           WAREHOUSE_NAME="Shared Unity Catalog Serverless"
           echo "Looking for warehouse named: $WAREHOUSE_NAME"
-
+          
           echo "Fetching existing warehouses..."
           EXISTING_WAREHOUSE=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" \
             "$DATABRICKS_HOST/api/2.0/sql/warehouses")
-
+          
           echo "Warehouse List Response: $(echo $EXISTING_WAREHOUSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
-
+          
           WAREHOUSE_ID=$(echo "$EXISTING_WAREHOUSE" | python3 -c "
           import sys, json
           import argparse
@@ -60,8 +60,8 @@ jobs:
           try:
               data = json.load(sys.stdin)
               name = args.name
-              if 'results' in data:
-                  warehouses = data['results']
+              if 'warehouses' in data:  # Changed from 'results' to 'warehouses'
+                  warehouses = data['warehouses']
                   matching = [w for w in warehouses if w['name'] == name]
                   if matching:
                       print(matching[0]['id'])
@@ -73,7 +73,7 @@ jobs:
               print(f'Error parsing response: {str(e)}', file=sys.stderr)
               print('')
           " --name "$WAREHOUSE_NAME")
-
+          
           if [ -z "$WAREHOUSE_ID" ]; then
             echo "Creating new warehouse..."
             RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
@@ -86,18 +86,18 @@ jobs:
                 \"auto_stop_mins\": 10,
                 \"max_num_clusters\": 1
               }")
-
+            
             echo "Create API Response: $(echo $RESPONSE | sed 's/\"token\":\"[^\"]*\"/\"token\":\"***\"/g')"
             WAREHOUSE_ID=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
           else
             echo "Found existing warehouse with ID: $WAREHOUSE_ID"
           fi
-
+          
           if [ -z "$WAREHOUSE_ID" ]; then
             echo "Error: Failed to get warehouse ID"
             exit 1
           fi
-
+          
           echo "Using warehouse with ID: $WAREHOUSE_ID"
           echo "WAREHOUSE_ID=$WAREHOUSE_ID" >> $GITHUB_ENV
 
