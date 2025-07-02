@@ -69,27 +69,33 @@ jobs:
           # Export ID for subsequent steps
           echo "WAREHOUSE_ID=$WAREHOUSE_ID" >> $GITHUB_ENV
 
+      # Set environment variable based on context
+      - name: Set environment variable
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "DEPLOY_ENV=pr-${{ github.event.number }}" >> $GITHUB_ENV
+          else
+            echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
+          fi
+
       - name: Validate bundle
-        run: databricks bundle validate
+        run: databricks bundle validate --var="environment=${{ env.DEPLOY_ENV }}"
 
       - name: Deploy to CI environment
         if: github.event_name == 'pull_request'
         run: |
-          export PR_NUMBER=${{ github.event.number }}
-          databricks bundle deploy --target dev --var="environment=pr-${PR_NUMBER}"
+          databricks bundle deploy --target dev --var="environment=${{ env.DEPLOY_ENV }}"
 
       - name: Run workflow tests
         if: github.event_name == 'pull_request'
         run: |
-          export PR_NUMBER=${{ github.event.number }}
           databricks bundle run demo_workflow --target dev
 
       - name: Deploy to main or feature/dabsdeploy
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/dabsdeploy')
-        run: databricks bundle deploy --target dev
+        run: databricks bundle deploy --target dev --var="environment=${{ env.DEPLOY_ENV }}"
 
       - name: Cleanup PR deployment
         if: github.event_name == 'pull_request' && github.event.action == 'closed'
         run: |
-          export PR_NUMBER=${{ github.event.number }}
-          databricks bundle destroy --target dev --var="environment=pr-${PR_NUMBER}" || true
+          databricks bundle destroy --target dev --var="environment=${{ env.DEPLOY_ENV }}" || true
