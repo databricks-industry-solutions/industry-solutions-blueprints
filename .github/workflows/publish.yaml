@@ -490,6 +490,83 @@ jobs:
                   
                   .notebook-content {
                       max-width: 100%;
+                      font-family: 'DM Sans', sans-serif !important;
+                  }
+                  
+                  .notebook-content .container {
+                      max-width: none !important;
+                  }
+                  
+                  .notebook-content code, 
+                  .notebook-content pre {
+                      font-family: 'DM Mono', monospace !important;
+                      color: #1F2937 !important;
+                  }
+                  
+                  .notebook-content .highlight {
+                      background-color: #f8f9fa !important;
+                  }
+                  
+                  .notebook-content .input_area {
+                      background-color: #f8f9fa !important;
+                  }
+                  
+                  .notebook-content .output_area {
+                      background-color: white !important;
+                  }
+                  
+                  .notebooks-grid {
+                      display: grid;
+                      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                      gap: 1.5rem;
+                      margin-top: 2rem;
+                  }
+                  
+                  .notebook-card {
+                      background: white;
+                      border: 1px solid var(--db-border);
+                      border-radius: 8px;
+                      padding: 1.5rem;
+                      transition: transform 0.2s ease, box-shadow 0.2s ease;
+                  }
+                  
+                  .notebook-card:hover {
+                      transform: translateY(-2px);
+                      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                  }
+                  
+                  .notebook-card h3 {
+                      font-size: 1.25rem;
+                      font-weight: 600;
+                      color: var(--db-text-primary);
+                      margin-bottom: 0.5rem;
+                  }
+                  
+                  .notebook-card a {
+                      text-decoration: none;
+                      color: inherit;
+                  }
+                  
+                  .notebook-meta {
+                      color: var(--db-text-secondary);
+                      font-size: 0.9rem;
+                  }
+                  
+                  .welcome-content {
+                      max-width: 800px;
+                  }
+                  
+                  .welcome-content h1 {
+                      font-size: 2.5rem;
+                      font-weight: 700;
+                      color: var(--db-text-primary);
+                      margin-bottom: 1rem;
+                  }
+                  
+                  .welcome-content p {
+                      font-size: 1.1rem;
+                      color: var(--db-text-secondary);
+                      margin-bottom: 2rem;
                   }
                   
                   @media (max-width: 768px) {
@@ -547,9 +624,9 @@ jobs:
               fi
           done
           
-          # Now build the sidebar for each notebook
+          # Now build the sidebar for each notebook - use the same structure as homepage
           for current_notebook in "${notebook_files[@]}"; do
-              # Add sidebar links to each notebook
+              # Add all sidebar links to each notebook (same as homepage)
               for sidebar_notebook in "${notebook_files[@]}"; do
                   if [ "$sidebar_notebook" = "$current_notebook" ]; then
                       cat >> "site/${current_notebook}.html" << EOF
@@ -566,20 +643,26 @@ jobs:
                   fi
               done
               
-              # Complete the notebook HTML
+              # Complete the notebook HTML - use same structure as homepage
               cat >> "site/${current_notebook}.html" << 'NOTEBOOK_COMPLETE_EOF'
                       </ul>
                   </div>
                   
                   <div class="content">
-                      <div class="notebook-content">
+                      <div class="welcome-content">
+                          <div class="notebooks-grid">
+                              <div class="notebook-card">
+                                  <div class="notebook-content">
           NOTEBOOK_COMPLETE_EOF
               
               # Inject the original notebook content
               cat "site/${current_notebook}_original.html" >> "site/${current_notebook}.html"
               
-              # Close the notebook HTML
+              # Close the notebook HTML - same structure as homepage
               cat >> "site/${current_notebook}.html" << 'NOTEBOOK_CLOSE_EOF'
+                                  </div>
+                              </div>
+                          </div>
                       </div>
                   </div>
               </div>
