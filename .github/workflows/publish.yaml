@@ -39,10 +39,10 @@ jobs:
         run: |
           mkdir -p site
           
-          # Convert notebooks to HTML
+          # Convert notebooks to HTML with code visible
           for notebook in notebooks/*.ipynb; do
               if [ -f "$notebook" ]; then
-                  jupyter nbconvert "$notebook" --to html --output-dir site --template classic
+                  jupyter nbconvert "$notebook" --to html --output-dir site --template classic --HTMLExporter.theme=light
               fi
           done
           
@@ -75,14 +75,14 @@ jobs:
               <title>{title}</title>
               <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
               <style>
-                  body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 20px; }}
-                  .header {{ background: #fff; padding: 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 20px; }}
+                  body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 0; }}
+                  .header {{ background: #fff; padding: 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 20px; position: fixed; top: 0; width: 100%; z-index: 1000; }}
                   .logo {{ height: 24px; }}
                   .title {{ font-size: 24px; font-weight: 600; flex: 1; text-align: center; }}
                   .github-link {{ background: #f5f5f5; padding: 8px 16px; border-radius: 6px; text-decoration: none; color: #333; }}
-                  .container {{ display: flex; max-width: 1200px; margin: 0 auto; }}
-                  .sidebar {{ width: 250px; background: #f8f9fa; padding: 20px; }}
-                  .content {{ flex: 1; padding: 20px; }}
+                  .main-container {{ display: flex; margin-top: 80px; min-height: calc(100vh - 80px); }}
+                  .sidebar {{ width: 250px; background: #f8f9fa; padding: 20px; position: fixed; left: 0; top: 80px; height: calc(100vh - 80px); overflow-y: auto; }}
+                  .content {{ flex: 1; padding: 20px; margin-left: 250px; }}
                   .nav-link {{ display: block; padding: 8px 12px; margin: 4px 0; text-decoration: none; color: #333; border-radius: 4px; }}
                   .nav-link:hover {{ background: #e9ecef; }}
                   .nav-link.active {{ background: #007bff; color: white; }}
@@ -94,14 +94,14 @@ jobs:
                   <div class="title">{title}</div>
                   <a href="{os.environ.get('GITHUB_SERVER_URL', '')}/{os.environ.get('GITHUB_REPOSITORY', '')}" class="github-link">View Full Project Code on GitHub</a>
               </div>
-              <div class="container">
+              <div class="main-container">
                   <div class="sidebar">
                       <h3>📚 Notebooks</h3>
                       <a href="index.html" class="nav-link active">Home</a>
           '''
           
-          # Add notebook links
-          for notebook in notebook_files:
+          # Add notebook links - sorted for consistency
+          for notebook in sorted(notebook_files):
               if notebook != 'index':
                   html += f'            <a href="{notebook}.html" class="nav-link">{notebook}</a>\n'
           
@@ -121,26 +121,45 @@ jobs:
           for notebook in notebook_files:
               if notebook != 'index':
                   with open(f'site/{notebook}.html', 'r') as f:
-                      content = f.read()
+                      original_content = f.read()
                   
-                  # Wrap notebook content with sidebar
+                  # Extract body content from nbconvert output
+                  import re
+                  body_match = re.search(r'<body[^>]*>(.*?)</body>', original_content, re.DOTALL)
+                  if body_match:
+                      notebook_body = body_match.group(1)
+                  else:
+                      notebook_body = original_content
+                  
+                  # Extract head content (styles, etc) from nbconvert output
+                  head_match = re.search(r'<head[^>]*>(.*?)</head>', original_content, re.DOTALL)
+                  if head_match:
+                      notebook_head = head_match.group(1)
+                  else:
+                      notebook_head = ''
+                  
+                  # Create wrapped notebook with sidebar and original nbconvert styling
                   wrapped = f'''<!DOCTYPE html>
           <html>
           <head>
               <title>{notebook} - {title}</title>
               <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+              {notebook_head}
               <style>
-                  body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 20px; }}
-                  .header {{ background: #fff; padding: 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 20px; }}
+                  body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 0; }}
+                  .header {{ background: #fff; padding: 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 20px; position: fixed; top: 0; width: 100%; z-index: 1000; }}
                   .logo {{ height: 24px; }}
                   .title {{ font-size: 24px; font-weight: 600; flex: 1; text-align: center; }}
                   .github-link {{ background: #f5f5f5; padding: 8px 16px; border-radius: 6px; text-decoration: none; color: #333; }}
-                  .container {{ display: flex; max-width: 1200px; margin: 0 auto; }}
-                  .sidebar {{ width: 250px; background: #f8f9fa; padding: 20px; }}
-                  .content {{ flex: 1; padding: 20px; }}
+                  .main-container {{ display: flex; margin-top: 80px; min-height: calc(100vh - 80px); }}
+                  .sidebar {{ width: 250px; background: #f8f9fa; padding: 20px; position: fixed; left: 0; top: 80px; height: calc(100vh - 80px); overflow-y: auto; }}
+                  .content {{ flex: 1; padding: 20px; margin-left: 250px; max-width: calc(100% - 250px); }}
                   .nav-link {{ display: block; padding: 8px 12px; margin: 4px 0; text-decoration: none; color: #333; border-radius: 4px; }}
                   .nav-link:hover {{ background: #e9ecef; }}
                   .nav-link.active {{ background: #007bff; color: white; }}
+                  /* Ensure nbconvert styles work properly */
+                  .content code, .content pre {{ font-family: 'DM Mono', monospace; color: #1F2937; }}
+                  .content .container {{ max-width: none; }}
               </style>
           </head>
           <body>
@@ -149,14 +168,14 @@ jobs:
                   <div class="title">{title}</div>
                   <a href="{os.environ.get('GITHUB_SERVER_URL', '')}/{os.environ.get('GITHUB_REPOSITORY', '')}" class="github-link">View Full Project Code on GitHub</a>
               </div>
-              <div class="container">
+              <div class="main-container">
                   <div class="sidebar">
                       <h3>📚 Notebooks</h3>
                       <a href="index.html" class="nav-link">Home</a>
           '''
                   
-                  # Add notebook links with active state
-                  for nb in notebook_files:
+                  # Add notebook links with active state - ensure consistency
+                  for nb in sorted(notebook_files):
                       if nb != 'index':
                           active = 'active' if nb == notebook else ''
                           wrapped += f'            <a href="{nb}.html" class="nav-link {active}">{nb}</a>\n'
@@ -164,7 +183,7 @@ jobs:
                   wrapped += f'''
                   </div>
                   <div class="content">
-                      {content}
+                      {notebook_body}
                   </div>
               </div>
           </body>
