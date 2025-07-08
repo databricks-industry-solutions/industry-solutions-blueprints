@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: html_publisher
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
