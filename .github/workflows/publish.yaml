@@ -75,7 +75,7 @@ jobs:
               <title>{title}</title>
               <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
               <style>
-                  body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 0; }}
+                  body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 0; background-color: #f5f5f5; }}
                   .header {{ background: #fff; padding: 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 20px; position: fixed; top: 0; width: 100%; z-index: 1000; }}
                   .logo {{ height: 24px; }}
                   .title {{ font-size: 24px; font-weight: 600; flex: 1; text-align: center; }}
@@ -83,9 +83,21 @@ jobs:
                   .main-container {{ display: flex; margin-top: 80px; min-height: calc(100vh - 80px); }}
                   .sidebar {{ width: 250px; background: #f8f9fa; padding: 20px; position: fixed; left: 0; top: 80px; height: calc(100vh - 80px); overflow-y: auto; }}
                   .content {{ flex: 1; padding: 20px; margin-left: 250px; }}
+                  .content-container {{ background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin: 20px; font-size: 14px; line-height: 1.6; }}
                   .nav-link {{ display: block; padding: 8px 12px; margin: 4px 0; text-decoration: none; color: #333; border-radius: 4px; }}
                   .nav-link:hover {{ background: #e9ecef; }}
                   .nav-link.active {{ background: #007bff; color: white; }}
+                  /* Match nbconvert styling */
+                  .content-container h1 {{ color: #1F2937; font-size: 28px; margin-bottom: 20px; }}
+                  .content-container h2 {{ color: #1F2937; font-size: 22px; margin-top: 30px; margin-bottom: 15px; }}
+                  .content-container h3 {{ color: #1F2937; font-size: 18px; margin-top: 25px; margin-bottom: 12px; }}
+                  .content-container p {{ margin-bottom: 15px; color: #374151; }}
+                  .content-container code {{ background: #f8f9fa; padding: 2px 6px; border-radius: 4px; font-family: 'Monaco', 'Consolas', monospace; color: #e91e63; }}
+                  .content-container pre {{ background: #f8f9fa; padding: 15px; border-radius: 6px; overflow-x: auto; border: 1px solid #e5e7eb; }}
+                  .content-container ul, .content-container ol {{ margin-bottom: 15px; padding-left: 25px; }}
+                  .content-container li {{ margin-bottom: 8px; }}
+                  .content-container a {{ color: #2563eb; text-decoration: none; }}
+                  .content-container a:hover {{ text-decoration: underline; }}
               </style>
           </head>
           <body>
@@ -108,7 +120,9 @@ jobs:
           html += f'''
                   </div>
                   <div class="content">
-                      {readme_content}
+                      <div class="content-container">
+                          {readme_content}
+                      </div>
                   </div>
               </div>
           </body>
@@ -146,7 +160,7 @@ jobs:
               <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
               {notebook_head}
               <style>
-                  body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 0; }}
+                  body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 0; background-color: #f5f5f5; }}
                   .header {{ background: #fff; padding: 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 20px; position: fixed; top: 0; width: 100%; z-index: 1000; }}
                   .logo {{ height: 24px; }}
                   .title {{ font-size: 24px; font-weight: 600; flex: 1; text-align: center; }}
@@ -157,9 +171,11 @@ jobs:
                   .nav-link {{ display: block; padding: 8px 12px; margin: 4px 0; text-decoration: none; color: #333; border-radius: 4px; }}
                   .nav-link:hover {{ background: #e9ecef; }}
                   .nav-link.active {{ background: #007bff; color: white; }}
-                  /* Ensure nbconvert styles work properly */
-                  .content code, .content pre {{ font-family: 'DM Mono', monospace; color: #1F2937; }}
+                  /* Ensure nbconvert styles work properly and match notebook styling */
+                  .content code, .content pre {{ font-family: 'Monaco', 'Consolas', monospace; color: #1F2937; }}
                   .content .container {{ max-width: none; }}
+                  /* Make notebook content have same white container style as index */
+                  .notebook-container {{ background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin: 20px; padding: 40px; }}
               </style>
           </head>
           <body>
@@ -183,7 +199,9 @@ jobs:
                   wrapped += f'''
                   </div>
                   <div class="content">
-                      {notebook_body}
+                      <div class="notebook-container">
+                          {notebook_body}
+                      </div>
                   </div>
               </div>
           </body>
