@@ -1,27 +1,9 @@
 name: publish
 
-env:
-  DB_PROFILES: ${{ secrets.DB_PROFILES }}
-
 on:
+  push:
+    branches: [ main, preview ]
   workflow_dispatch:
-    inputs:
-      db_profile:
-        type: string
-        description: 'Databricks environment to publish HTML from'
-        default: 'DEMO'
-      db_path:
-        type: string
-        description: 'Repository path on databricks environment'
-        required: true
-      split_markdown:
-        description: 'Splitting HTML by markdown'
-        type: choice
-        required: true
-        default: 'false'
-        options:
-          - 'true'
-          - 'false'
 
 permissions:
   contents: read
@@ -33,47 +15,170 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: html_publisher
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
 
       - name: Checkout project
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          pip install git+https://github.com/databricks-industry-solutions/industry-solutions-release
+          pip install --upgrade pip
+          pip install nbconvert jupyter-book sphinx
 
-      - name: Package solution accelerator
+      - name: Convert notebooks to HTML
         run: |
+          mkdir -p site
           
-          import os
-          import configparser
-          import io
-          from databricks.solutions import Accelerator
+          # Create index.html with Databricks branding
+          cat > site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>${{ github.event.repository.name }} - Databricks Solution</title>
+              <style>
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                      margin: 0;
+                      padding: 0;
+                      background-color: #f8f9fa;
+                      color: #333;
+                  }
+                  .header {
+                      background: linear-gradient(135deg, #FF3621 0%, #E02D20 100%);
+                      color: white;
+                      padding: 2rem 0;
+                      text-align: center;
+                      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                  }
+                  .header h1 {
+                      margin: 0;
+                      font-size: 2.5rem;
+                      font-weight: 300;
+                  }
+                  .header p {
+                      margin: 0.5rem 0 0 0;
+                      font-size: 1.1rem;
+                      opacity: 0.9;
+                  }
+                  .container {
+                      max-width: 1200px;
+                      margin: 0 auto;
+                      padding: 2rem;
+                  }
+                  .notebooks-grid {
+                      display: grid;
+                      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                      gap: 1.5rem;
+                      margin-top: 2rem;
+                  }
+                  .notebook-card {
+                      background: white;
+                      border-radius: 8px;
+                      padding: 1.5rem;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                      transition: transform 0.2s ease, box-shadow 0.2s ease;
+                  }
+                  .notebook-card:hover {
+                      transform: translateY(-2px);
+                      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+                  }
+                  .notebook-card h3 {
+                      margin: 0 0 0.5rem 0;
+                      color: #FF3621;
+                      font-size: 1.3rem;
+                  }
+                  .notebook-card a {
+                      text-decoration: none;
+                      color: inherit;
+                  }
+                  .notebook-card a:hover h3 {
+                      text-decoration: underline;
+                  }
+                  .notebook-meta {
+                      color: #666;
+                      font-size: 0.9rem;
+                      margin-top: 0.5rem;
+                  }
+                  .footer {
+                      margin-top: 3rem;
+                      padding-top: 2rem;
+                      border-top: 1px solid #e9ecef;
+                      text-align: center;
+                      color: #666;
+                  }
+                  .footer a {
+                      color: #FF3621;
+                      text-decoration: none;
+                  }
+                  .footer a:hover {
+                      text-decoration: underline;
+                  }
+                  .databricks-logo {
+                      display: inline-block;
+                      font-weight: bold;
+                      font-size: 1.2rem;
+                      margin-bottom: 0.5rem;
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <div class="databricks-logo">🧱 Databricks</div>
+                  <h1>${{ github.event.repository.name }}</h1>
+                  <p>Industry Solutions Blueprint</p>
+              </div>
+              <div class="container">
+                  <div class="notebooks-grid">
+          EOF
           
-          config = configparser.ConfigParser()
-          config.read_file(io.StringIO(os.environ['DB_PROFILES']))
-          if '${{ github.event.inputs.db_profile }}' not in config.sections():
-            raise Exception('Provided DB_PROFILE is not supported')
-          config = config['${{ github.event.inputs.db_profile }}']
+          # Convert each notebook to HTML and add to index
+          for notebook in notebooks/*.ipynb; do
+              if [ -f "$notebook" ]; then
+                  filename=$(basename "$notebook" .ipynb)
+                  echo "Converting $notebook to HTML..."
+                  
+                  # Convert notebook to HTML with custom template
+                  jupyter nbconvert "$notebook" --to html --output-dir site \
+                      --template classic \
+                      --HTMLExporter.theme=light \
+                      --HTMLExporter.anchor_link_text=' ' \
+                      --no-input
+                  
+                  # Add entry to index
+                  cat >> site/index.html << EOF
+                      <div class="notebook-card">
+                          <a href="${filename}.html">
+                              <h3>${filename}</h3>
+                              <p class="notebook-meta">Jupyter Notebook</p>
+                          </a>
+                      </div>
+          EOF
+              fi
+          done
           
-          split_markdown = '${{ github.event.inputs.split_markdown }}' == 'true'
-          
-          Accelerator(
-            db_host=config['host'],
-            db_token=config['token'],
-            db_path='${{ github.event.inputs.db_path }}',
-            db_name='${{ github.event.repository.name }}',
-            markdown=split_markdown,
-          ).release()
-
-        shell: python
+          # Close the HTML
+          cat >> site/index.html << 'EOF'
+                  </div>
+                  <div class="footer">
+                      <p>Generated from <a href="${{ github.server_url }}/${{ github.repository }}">${{ github.repository }}</a></p>
+                      <p>Built with ❤️ on Databricks</p>
+                  </div>
+              </div>
+          </body>
+          </html>
+          EOF
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
