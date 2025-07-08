@@ -33,11 +33,33 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install nbconvert jupyter-book sphinx
+          pip install nbconvert jupyter-book sphinx markdown
 
       - name: Convert notebooks to HTML
         run: |
           mkdir -p site
+          
+          # Convert README.md to HTML
+          python3 << 'PYTHON_EOF'
+          import markdown
+          import os
+          
+          # Read README.md
+          if os.path.exists('README.md'):
+              with open('README.md', 'r') as f:
+                  readme_content = f.read()
+              
+              # Convert to HTML
+              html_content = markdown.markdown(readme_content, extensions=['tables', 'fenced_code', 'toc'])
+              
+              # Save to file for later use
+              with open('site/readme.html', 'w') as f:
+                  f.write(html_content)
+          else:
+              # Fallback content if no README.md
+              with open('site/readme.html', 'w') as f:
+                  f.write('<h1>Welcome to this Databricks Solution Accelerator</h1><p>This is a Databricks Industry Solutions Blueprint. Select a notebook from the sidebar to explore the solution.</p>')
+          PYTHON_EOF
           
           # Install DM Sans font and create base HTML template
           cat > site/index.html << 'EOF'
@@ -102,16 +124,22 @@ jobs:
                   }
                   
                   .databricks-logo {
-                      font-weight: 700;
-                      font-size: 1.25rem;
-                      color: var(--db-primary-text);
+                      display: flex;
+                      align-items: center;
                       text-decoration: none;
+                  }
+                  
+                  .databricks-logo img {
+                      height: 24px;
+                      width: auto;
                   }
                   
                   .project-title {
                       font-size: 1.5rem;
                       font-weight: 600;
                       color: var(--db-primary-text);
+                      flex: 1;
+                      text-align: center;
                   }
                   
                   .github-link {
@@ -267,8 +295,10 @@ jobs:
               <div class="header">
                   <div class="header-content">
                       <div class="header-left">
-                          <a href="https://databricks.com" class="databricks-logo">Databricks</a>
-                          <div class="project-title">${{ github.event.repository.name }}</div>
+                          <a href="https://databricks.com" class="databricks-logo">
+                              <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/ddd080df888c63d3c68438635badd32f0c91e40f31fe8fa2ed73da63df3598e3/media/databricks.a424ad6e.svg" alt="Databricks">
+                          </a>
+                          <div class="project-title" id="project-title"></div>
                       </div>
                       <a href="${{ github.server_url }}/${{ github.repository }}" class="github-link">
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -299,17 +329,214 @@ jobs:
                       --template classic \
                       --HTMLExporter.theme=light
                   
-                  # Add custom CSS to each notebook HTML
-                  cat >> "site/${filename}.html" << 'NOTEBOOK_EOF'
-          <style>
-              body { font-family: 'DM Sans', sans-serif !important; }
-              .container { max-width: none !important; }
-              code, pre { font-family: 'DM Mono', monospace !important; color: #1F2937 !important; }
-              .highlight { background-color: #f8f9fa !important; }
-              .input_area { background-color: #f8f9fa !important; }
-              .output_area { background-color: white !important; }
-          </style>
-          NOTEBOOK_EOF
+                  # Create a wrapped version with sidebar
+                  mv "site/${filename}.html" "site/${filename}_original.html"
+                  
+                  # Create new HTML with sidebar
+                  cat > "site/${filename}.html" << NOTEBOOK_HTML_EOF
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>${filename} - \${{ github.event.repository.name }}</title>
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+              <style>
+                  :root {
+                      --db-primary: #FFFFFF;
+                      --db-primary-text: #1E293B;
+                      --db-accent: #FF6928;
+                      --db-link: #0066CC;
+                      --db-background: #FFFFFF;
+                      --db-surface: #F8FAFC;
+                      --db-text-primary: #1E293B;
+                      --db-text-secondary: #64748B;
+                      --db-border: #E2E8F0;
+                      --db-border-light: #F1F5F9;
+                  }
+                  
+                  * {
+                      margin: 0;
+                      padding: 0;
+                      box-sizing: border-box;
+                  }
+                  
+                  body {
+                      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+                      background-color: var(--db-background);
+                      color: var(--db-text-primary);
+                      line-height: 1.6;
+                  }
+                  
+                  .header {
+                      background-color: var(--db-primary);
+                      color: var(--db-primary-text);
+                      padding: 1rem 0;
+                      position: sticky;
+                      top: 0;
+                      z-index: 100;
+                      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                      border-bottom: 1px solid var(--db-border);
+                  }
+                  
+                  .header-content {
+                      max-width: 1200px;
+                      margin: 0 auto;
+                      padding: 0 2rem;
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                  }
+                  
+                  .header-left {
+                      display: flex;
+                      align-items: center;
+                      gap: 1rem;
+                  }
+                  
+                  .databricks-logo {
+                      display: flex;
+                      align-items: center;
+                      text-decoration: none;
+                  }
+                  
+                  .databricks-logo img {
+                      height: 24px;
+                      width: auto;
+                  }
+                  
+                  .project-title {
+                      font-size: 1.5rem;
+                      font-weight: 600;
+                      color: var(--db-primary-text);
+                      flex: 1;
+                      text-align: center;
+                  }
+                  
+                  .github-link {
+                      color: var(--db-primary-text);
+                      text-decoration: none;
+                      font-weight: 500;
+                      display: flex;
+                      align-items: center;
+                      gap: 0.5rem;
+                      padding: 0.5rem 1rem;
+                      border: 1px solid var(--db-border);
+                      border-radius: 6px;
+                      transition: background-color 0.2s;
+                      background-color: var(--db-surface);
+                  }
+                  
+                  .github-link:hover {
+                      background-color: var(--db-border-light);
+                  }
+                  
+                  .main-container {
+                      display: flex;
+                      min-height: calc(100vh - 80px);
+                  }
+                  
+                  .sidebar {
+                      width: 300px;
+                      background-color: var(--db-surface);
+                      border-right: 1px solid var(--db-border);
+                      padding: 2rem 0;
+                      position: sticky;
+                      top: 80px;
+                      height: calc(100vh - 80px);
+                      overflow-y: auto;
+                  }
+                  
+                  .sidebar h2 {
+                      font-size: 1.1rem;
+                      font-weight: 600;
+                      color: var(--db-text-primary);
+                      margin-bottom: 1rem;
+                      padding: 0 1.5rem;
+                  }
+                  
+                  .notebook-list {
+                      list-style: none;
+                  }
+                  
+                  .notebook-item {
+                      margin-bottom: 0.25rem;
+                  }
+                  
+                  .notebook-link {
+                      display: block;
+                      padding: 0.75rem 1.5rem;
+                      color: var(--db-text-primary);
+                      text-decoration: none;
+                      font-weight: 500;
+                      transition: background-color 0.2s;
+                  }
+                  
+                  .notebook-link:hover {
+                      background-color: rgba(34, 114, 180, 0.1);
+                      color: var(--db-link);
+                  }
+                  
+                  .notebook-link.active {
+                      background-color: var(--db-link);
+                      color: white;
+                  }
+                  
+                  .content {
+                      flex: 1;
+                      padding: 2rem;
+                      max-width: calc(100% - 300px);
+                  }
+                  
+                  .notebook-content {
+                      max-width: 100%;
+                  }
+                  
+                  @media (max-width: 768px) {
+                      .main-container {
+                          flex-direction: column;
+                      }
+                      
+                      .sidebar {
+                          width: 100%;
+                          position: static;
+                          height: auto;
+                          border-right: none;
+                          border-bottom: 1px solid var(--db-border);
+                      }
+                      
+                      .content {
+                          max-width: 100%;
+                      }
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <div class="header-content">
+                      <div class="header-left">
+                          <a href="https://databricks.com" class="databricks-logo">
+                              <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/ddd080df888c63d3c68438635badd32f0c91e40f31fe8fa2ed73da63df3598e3/media/databricks.a424ad6e.svg" alt="Databricks">
+                          </a>
+                          <div class="project-title" id="project-title"></div>
+                      </div>
+                      <a href="\${{ github.server_url }}/\${{ github.repository }}" class="github-link">
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                          </svg>
+                          View Full Project Code on GitHub
+                      </a>
+                  </div>
+              </div>
+              
+              <div class="main-container">
+                  <div class="sidebar">
+                      <h2>📚 Notebooks</h2>
+                      <ul class="notebook-list">
+                          <li class="notebook-item">
+                              <a href="index.html" class="notebook-link">Home</a>
+                          </li>
+          NOTEBOOK_HTML_EOF
                   
                   # Add to sidebar
                   cat >> site/index.html << EOF
@@ -320,6 +547,60 @@ jobs:
               fi
           done
           
+          # Now build the sidebar for each notebook
+          for current_notebook in "${notebook_files[@]}"; do
+              # Add sidebar links to each notebook
+              for sidebar_notebook in "${notebook_files[@]}"; do
+                  if [ "$sidebar_notebook" = "$current_notebook" ]; then
+                      cat >> "site/${current_notebook}.html" << EOF
+                          <li class="notebook-item">
+                              <a href="${sidebar_notebook}.html" class="notebook-link active">${sidebar_notebook}</a>
+                          </li>
+          EOF
+                  else
+                      cat >> "site/${current_notebook}.html" << EOF
+                          <li class="notebook-item">
+                              <a href="${sidebar_notebook}.html" class="notebook-link">${sidebar_notebook}</a>
+                          </li>
+          EOF
+                  fi
+              done
+              
+              # Complete the notebook HTML
+              cat >> "site/${current_notebook}.html" << 'NOTEBOOK_COMPLETE_EOF'
+                      </ul>
+                  </div>
+                  
+                  <div class="content">
+                      <div class="notebook-content">
+          NOTEBOOK_COMPLETE_EOF
+              
+              # Inject the original notebook content
+              cat "site/${current_notebook}_original.html" >> "site/${current_notebook}.html"
+              
+              # Close the notebook HTML
+              cat >> "site/${current_notebook}.html" << 'NOTEBOOK_CLOSE_EOF'
+                      </div>
+                  </div>
+              </div>
+              
+              <script>
+                  // Format repository name as title
+                  const repoName = '${{ github.event.repository.name }}';
+                  const formattedTitle = repoName
+                      .split('-')
+                      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ') + ' Accelerator';
+                  document.getElementById('project-title').textContent = formattedTitle;
+              </script>
+          </body>
+          </html>
+          NOTEBOOK_CLOSE_EOF
+              
+              # Clean up the original file
+              rm "site/${current_notebook}_original.html"
+          done
+          
           # Close sidebar and add main content
           cat >> site/index.html << 'EOF'
                       </ul>
@@ -327,8 +608,9 @@ jobs:
                   
                   <div class="content">
                       <div class="welcome-content">
-                          <h1>Welcome to ${{ github.event.repository.name }}</h1>
-                          <p>This is a Databricks Industry Solutions Blueprint. Select a notebook from the sidebar to explore the solution.</p>
+                          <div id="readme-content">
+                              <!-- README content will be inserted here -->
+                          </div>
                           
                           <div class="notebooks-grid">
           EOF
@@ -349,9 +631,42 @@ jobs:
                       </div>
                   </div>
               </div>
+              
+              <script>
+                  // Format repository name as title
+                  const repoName = '${{ github.event.repository.name }}';
+                  const formattedTitle = repoName
+                      .split('-')
+                      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ') + ' Accelerator';
+                  document.getElementById('project-title').textContent = formattedTitle;
+              </script>
           </body>
           </html>
           EOF
+          
+          # Inject README content into index.html
+          python3 << 'PYTHON_EOF'
+          import re
+          
+          # Read the README HTML content
+          with open('site/readme.html', 'r') as f:
+              readme_html = f.read()
+          
+          # Read the index.html file
+          with open('site/index.html', 'r') as f:
+              index_content = f.read()
+          
+          # Replace the placeholder comment with README content
+          updated_content = index_content.replace(
+              '<!-- README content will be inserted here -->',
+              readme_html
+          )
+          
+          # Write back to index.html
+          with open('site/index.html', 'w') as f:
+              f.write(updated_content)
+          PYTHON_EOF
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
