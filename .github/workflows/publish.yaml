@@ -217,6 +217,39 @@ jobs:
                       border-left-color: #E33417; 
                   }}
                   
+                  /* Content containment - prevent overflow */
+                  .content-section {{ 
+                      overflow-x: auto; 
+                      word-wrap: break-word; 
+                      word-break: break-word; 
+                  }}
+                  
+                  .content-section img {{ 
+                      max-width: 100%; 
+                      height: auto; 
+                      display: block; 
+                      margin: 16px auto; 
+                      border-radius: 4px; 
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+                  }}
+                  
+                  .content-section table {{ 
+                      width: 100%; 
+                      max-width: 100%; 
+                      overflow-x: auto; 
+                      display: block; 
+                      white-space: nowrap; 
+                      border-collapse: collapse; 
+                      margin: 16px 0; 
+                  }}
+                  
+                  .content-section pre {{ 
+                      overflow-x: auto; 
+                      max-width: 100%; 
+                      white-space: pre-wrap; 
+                      word-wrap: break-word; 
+                  }}
+                  
                   /* Notebook styling */
                   .cell {{ margin: 16px 0; }}
                   .text_cell_render h1 {{ font-size: 28px; color: #1B3139; font-weight: 600; margin: 24px 0 16px 0; }}
@@ -230,24 +263,39 @@ jobs:
                       font-family: 'Monaco', 'Consolas', monospace; 
                   }}
                   
-                  .input_area {{ 
+                  .input_area, .highlight {{ 
                       background: #f8f9fa; 
                       border: 1px solid #E3E3E3; 
                       border-radius: 8px; 
                       margin: 8px 0; 
+                      overflow-x: auto; 
                   }}
                   
-                  .input_area pre {{ 
+                  .input_area pre, .highlight pre {{ 
                       margin: 0; 
                       padding: 16px; 
                       background: transparent; 
                       border: none; 
                       font-family: 'Monaco', 'Consolas', monospace; 
                       font-size: 14px; 
+                      overflow-x: auto; 
                   }}
                   
-                  /* Override Prism theme for better integration */
-                  .language-python {{ background: transparent !important; }}
+                  /* Syntax highlighting for both .py and .ipynb */
+                  .language-python, .highlight {{ background: transparent !important; }}
+                  
+                  /* Ensure code blocks in nbconvert output get highlighted */
+                  .highlight .highlight {{ background: #f8f9fa !important; border: 1px solid #E3E3E3 !important; }}
+                  
+                  /* Output areas */
+                  .output_area {{ 
+                      margin: 8px 0; 
+                      padding: 8px; 
+                      background: #f8f9fa; 
+                      border-left: 3px solid #FF3621; 
+                      border-radius: 4px; 
+                      overflow-x: auto; 
+                  }}
                   
                   /* Mobile responsiveness */
                   @media (max-width: 768px) {{
@@ -323,17 +371,44 @@ jobs:
                       const targetSection = document.getElementById(sectionId);
                       if (targetSection) {{
                           targetSection.classList.add('active');
+                          
+                          // Convert nbconvert code blocks to Prism format for highlighting
+                          const codeBlocks = targetSection.querySelectorAll('.highlight pre, .input_area pre');
+                          codeBlocks.forEach(block => {{
+                              if (!block.querySelector('code')) {{
+                                  // Wrap content in code element for Prism
+                                  const code = document.createElement('code');
+                                  code.className = 'language-python';
+                                  code.innerHTML = block.innerHTML;
+                                  block.innerHTML = '';
+                                  block.appendChild(code);
+                              }}
+                          }});
                       }}
                       
                       // Add active class to clicked nav link
                       event.target.classList.add('active');
                       
-                      // Highlight code blocks
-                      Prism.highlightAll();
+                      // Highlight all code blocks including newly formatted ones
+                      setTimeout(() => {{
+                          Prism.highlightAll();
+                      }}, 10);
                   }}
                   
                   // Initialize syntax highlighting on load
                   document.addEventListener('DOMContentLoaded', function() {{
+                      // Process all existing code blocks on page load
+                      const allCodeBlocks = document.querySelectorAll('.highlight pre, .input_area pre');
+                      allCodeBlocks.forEach(block => {{
+                          if (!block.querySelector('code')) {{
+                              const code = document.createElement('code');
+                              code.className = 'language-python';
+                              code.innerHTML = block.innerHTML;
+                              block.innerHTML = '';
+                              block.appendChild(code);
+                          }}
+                      }});
+                      
                       Prism.highlightAll();
                   }});
               </script>
