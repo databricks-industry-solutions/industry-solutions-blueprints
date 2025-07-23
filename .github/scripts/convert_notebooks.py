@@ -54,16 +54,13 @@ def parse_databricks_notebook(filepath):
     return cells
 
 
-def convert_to_html(filepath):
-    """Convert Databricks .py notebook to HTML exactly matching nbconvert structure"""
+def convert_to_html_fragment(filepath):
+    """Convert Databricks .py notebook to HTML fragment with syntax highlighting"""
     filename = os.path.basename(filepath)
     name_without_ext = os.path.splitext(filename)[0]
     
     cells = parse_databricks_notebook(filepath)
     html_content = []
-    
-    # Start with nbconvert container structure (matching what nbconvert generates)
-    html_content.append('<div class="container" id="notebook-container">')
     
     for i, cell in enumerate(cells):
         if cell['type'] == 'markdown':
@@ -80,46 +77,40 @@ def convert_to_html(filepath):
 </div>
 </div>''')
         elif cell['type'] == 'code':
-            # Create code cell exactly matching nbconvert structure
+            # Create code cell with proper syntax highlighting for Python
             escaped_code = html.escape(cell['content'])
             html_content.append(f'''<div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="inner_cell">
 <div class="input_area">
-<div class="highlight hl-ipython3"><pre><span></span>{escaped_code}</pre></div>
+<div class="highlight hl-ipython3">
+<pre class="language-python"><code class="language-python">{escaped_code}</code></pre>
+</div>
 </div>
 </div>
 </div>
 </div>''')
     
-    html_content.append('</div>')  # Close container
+    # Return just the content fragment (no full HTML document)
+    fragment_content = '\\n'.join(html_content)
     
-    # Create minimal HTML document structure (no full styles, will be wrapped later)
-    body_content = '\\n'.join(html_content)
+    # Write fragment to temp file for the main script to read
+    temp_path = f"temp_{name_without_ext}_fragment.html"
+    with open(temp_path, 'w') as f:
+        f.write(fragment_content)
     
-    # Create simple HTML structure that matches what nbconvert generates
-    simple_html = f'''<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>{name_without_ext}</title>
-</head>
-<body>
-{body_content}
-</body>
-</html>'''
-    
-    # Write HTML file
-    output_path = f"site/{name_without_ext}.html"
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, 'w') as f:
-        f.write(simple_html)
-    
-    return name_without_ext
+    return name_without_ext, fragment_content
 
 
 if __name__ == "__main__":
     # Process all .py files in notebooks directory
+    notebook_data = {}
     for py_file in glob.glob('notebooks/*.py'):
-        convert_to_html(py_file)
-        print(f"Converted {py_file} to HTML")
+        name, fragment = convert_to_html_fragment(py_file)
+        notebook_data[name] = fragment
+        print(f"Converted {py_file} to HTML fragment")
+    
+    # Write notebook data to a JSON file for the main script
+    import json
+    with open('notebook_fragments.json', 'w') as f:
+        json.dump(notebook_data, f)
