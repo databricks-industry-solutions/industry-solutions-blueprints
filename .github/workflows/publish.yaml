@@ -2,7 +2,7 @@ name: publish
 
 on:
   push:
-    branches: [ main, preview, fix/consistent-html-rendering ]
+    branches: [ main, preview ]
   workflow_dispatch:
 
 permissions:
