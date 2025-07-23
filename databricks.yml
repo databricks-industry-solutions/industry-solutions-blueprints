@@ -45,7 +45,7 @@ resources:
           depends_on:
             - task_key: notebook1
           notebook_task:
-            notebook_path: "./notebooks/notebook2.ipynb"
+            notebook_path: "./notebooks/notebook2.py"
 
 # Example resources you can uncomment and customize:
 # resources:
