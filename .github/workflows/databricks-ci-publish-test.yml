@@ -1,4 +1,4 @@
-name: Databricks CI/CD + Publish Test
+name: Databricks CI/CD + Simple Publish
 
 on:
   push:
@@ -15,14 +15,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  databricks-ci-publish-test:
+  databricks-ci-publish:
     runs-on: html_publisher
     environment:
       name: ${{ github.ref_name == 'main' && 'github-pages' || 'preview' }}
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      # Phase 1: Copy exact steps from databricks-ci.yml
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -51,11 +50,8 @@ jobs:
           WAREHOUSE_NAME="Shared Unity Catalog Serverless"
           echo "Looking for warehouse named: $WAREHOUSE_NAME"
           
-          echo "Fetching existing warehouses..."
           EXISTING_WAREHOUSE=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" \
             "$DATABRICKS_HOST/api/2.0/sql/warehouses")
-          
-          echo "Warehouse List Response: $(echo $EXISTING_WAREHOUSE | sed 's/"token":"[^"]*"/"token":"***"/g')"
           
           WAREHOUSE_ID=$(echo "$EXISTING_WAREHOUSE" | python3 -c "
           import sys, json
@@ -95,7 +91,6 @@ jobs:
                 \"max_num_clusters\": 1
               }")
             
-            echo "Create API Response: $(echo $RESPONSE | sed 's/"token":"[^"]*"/"token":"***"/g')"
             WAREHOUSE_ID=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
           else
             echo "Found existing warehouse with ID: $WAREHOUSE_ID"
@@ -108,7 +103,6 @@ jobs:
           
           echo "Using warehouse with ID: $WAREHOUSE_ID"
           echo "WAREHOUSE_ID=$WAREHOUSE_ID" >> $GITHUB_ENV
-          # Set default environment to dev
           echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
 
       - name: Validate bundle
@@ -120,7 +114,6 @@ jobs:
           RUN_OUTPUT=$(databricks bundle run demo_workflow --target dev --var="environment=${{ env.DEPLOY_ENV }}" 2>&1)
           echo "$RUN_OUTPUT"
           
-          # Extract run ID from output
           RUN_ID=$(echo "$RUN_OUTPUT" | grep -o 'Run URL:.*run/[0-9]*' | grep -o '[0-9]*$' || echo "")
           if [ -z "$RUN_ID" ]; then
             echo "Could not extract run ID from output"
@@ -130,541 +123,212 @@ jobs:
           echo "Extracted run ID: $RUN_ID"
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
 
-      # Phase 2: Export executed notebooks with outputs
-      - name: Install additional dependencies
+      - name: Install dependencies and export notebooks
         run: |
-          pip install --upgrade pip
-          pip install requests markdown pyyaml
+          pip install requests markdown
+          mkdir -p site
 
-      - name: Export executed notebooks from job run
+      - name: Export notebooks from job run
         env:
           DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
           DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
         run: |
-          mkdir -p site
-          
           python3 << 'EOF'
           import os
           import json
           import requests
           import base64
           import markdown
-          import time
 
           DATABRICKS_HOST = os.environ['DATABRICKS_HOST']
           DATABRICKS_TOKEN = os.environ['DATABRICKS_TOKEN']
           RUN_ID = os.environ['RUN_ID']
           headers = {'Authorization': f'Bearer {DATABRICKS_TOKEN}'}
 
-          # Databricks brand colors
-          COLORS = {
-              'primary': '#FF3621',
-              'text': '#1B3139',
-              'bg': '#FFFFFF',
-              'light_bg': '#F5F5F5',
-              'border': '#E3E3E3'
-          }
-
           def get_run_details(run_id):
-              """Get job run details to find executed notebook locations"""
               response = requests.get(
                   f"{DATABRICKS_HOST}/api/2.1/jobs/runs/get",
                   headers=headers,
                   params={'run_id': run_id}
               )
-              
-              if response.status_code == 200:
-                  return response.json()
-              else:
-                  print(f"Failed to get run details: {response.status_code} - {response.text}")
-                  return None
+              return response.json() if response.status_code == 200 else None
 
-          def export_job_run_notebook(run_id, task_key):
-              """Export notebook HTML from job run results (with outputs)"""
+          def export_task_notebook(task_run_id):
               response = requests.get(
-                  f"{DATABRICKS_HOST}/api/2.1/jobs/runs/export",
+                  f"{DATABRICKS_HOST}/api/2.0/jobs/runs/export",
                   headers=headers,
-                  params={
-                      'run_id': run_id,
-                      'format': 'HTML'
-                  }
+                  params={'run_id': task_run_id, 'format': 'HTML'}
               )
-              
               if response.status_code == 200:
                   data = response.json()
-                  
-                  # The response contains HTML for all tasks
-                  # We need to extract the specific task's notebook HTML
-                  views = data.get('views', [])
-                  
-                  for view in views:
-                      if view.get('name') == task_key:
-                          content = view.get('content', '')
-                          if content:
-                              html_content = base64.b64decode(content).decode('utf-8')
-                              return html_content
-                  
-                  # If specific task not found, try to get the full run HTML
                   if 'content' in data:
-                      html_content = base64.b64decode(data['content']).decode('utf-8')
-                      return html_content
-                      
-                  print(f"No content found for task {task_key} in run {run_id}")
-                  return None
-              else:
-                  print(f"Failed to export run {run_id}: {response.status_code} - {response.text}")
-                  return None
+                      return base64.b64decode(data['content']).decode('utf-8')
+              return None
 
-          def create_wrapped_html(notebook_name, notebook_html, all_notebooks):
-              """Wrap notebook HTML with Databricks branding"""
+          def create_simple_html(notebook_name, notebook_html, all_notebooks):
               repo_name = os.environ.get('GITHUB_REPOSITORY', '').split('/')[-1]
               title = ' '.join(word.capitalize() for word in repo_name.split('-')) + ' Accelerator'
               display_name = notebook_name.replace('_', ' ').title()
 
-              html = f'''<!DOCTYPE html>
+              nav_links = ['<a href="index.html">📚 Overview</a>']
+              for nb_name in sorted(all_notebooks):
+                  nb_display = nb_name.replace('_', ' ').title()
+                  active = ' style="background: #FF3621; color: white;"' if nb_name == notebook_name else ''
+                  nav_links.append(f'<a href="{nb_name}.html"{active}>📓 {nb_display}</a>')
+
+              return f'''<!DOCTYPE html>
           <html>
           <head>
               <title>{display_name} - {title}</title>
-              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
               <style>
-                  * {{ box-sizing: border-box; }}
-                  
-                  body {{
-                      font-family: 'DM Sans', sans-serif !important;
-                      margin: 0;
-                      padding: 0;
-                      background: {COLORS['bg']};
-                      color: {COLORS['text']};
-                      font-size: 14px;
+                  body {{ 
+                      font-family: system-ui, -apple-system, sans-serif;
+                      margin: 0; 
+                      padding: 20px; 
+                      background: white;
                       line-height: 1.6;
                   }}
-                  
-                  .header {{
-                      background: {COLORS['bg']};
-                      padding: 20px 40px;
-                      border-bottom: 1px solid {COLORS['border']};
-                      display: flex;
-                      align-items: center;
-                      gap: 20px;
-                      position: fixed;
-                      top: 0;
-                      width: 100%;
-                      z-index: 1000;
+                  .header {{ 
+                      display: flex; 
+                      align-items: center; 
+                      gap: 16px; 
+                      padding: 16px 0; 
+                      border-bottom: 2px solid #FF3621; 
+                      margin-bottom: 20px;
                   }}
-                  
                   .logo {{ height: 24px; }}
-                  
-                  .title {{
-                      font-size: 24px;
-                      font-weight: 600;
-                      flex: 1;
-                      text-align: center;
-                      color: {COLORS['text']};
+                  .title {{ font-size: 24px; font-weight: 600; flex: 1; }}
+                  .github-btn {{ 
+                      background: #FF3621; 
+                      color: white; 
+                      padding: 8px 16px; 
+                      border-radius: 4px; 
+                      text-decoration: none; 
+                      font-size: 14px;
                   }}
-                  
-                  .github-link {{
-                      background: {COLORS['light_bg']};
-                      padding: 8px 16px;
-                      border-radius: 6px;
-                      text-decoration: none;
-                      color: {COLORS['text']};
-                      font-weight: 500;
-                      transition: all 0.2s;
+                  .nav {{ 
+                      margin: 16px 0; 
+                      display: flex; 
+                      gap: 12px; 
+                      flex-wrap: wrap; 
                   }}
-                  
-                  .github-link:hover {{ background: {COLORS['border']}; }}
-                  
-                  .main-container {{
-                      display: flex;
-                      margin-top: 80px;
-                      min-height: calc(100vh - 80px);
+                  .nav a {{ 
+                      padding: 8px 12px; 
+                      text-decoration: none; 
+                      background: #f5f5f5; 
+                      border-radius: 4px; 
+                      font-size: 14px;
+                      color: #333;
                   }}
-                  
-                  .sidebar {{
-                      width: 280px;
-                      background: {COLORS['light_bg']};
-                      padding: 30px 20px;
-                      position: fixed;
-                      left: 0;
-                      top: 80px;
-                      height: calc(100vh - 80px);
-                      overflow-y: auto;
-                  }}
-                  
-                  .sidebar h3 {{
-                      font-size: 16px;
-                      font-weight: 600;
-                      margin: 0 0 20px 12px;
-                      color: {COLORS['text']};
-                  }}
-                  
-                  .content {{
-                      flex: 1;
-                      padding: 20px;
-                      margin-left: 280px;
-                  }}
-                  
-                  .notebook-container {{
-                      background: {COLORS['bg']};
-                      border-radius: 8px;
-                      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                      padding: 40px;
-                      margin: 0 auto;
-                      max-width: 1200px;
-                  }}
-                  
-                  .nav-link {{
-                      display: block;
-                      padding: 10px 12px;
-                      margin: 4px 0;
-                      text-decoration: none;
-                      color: {COLORS['text']};
-                      border-radius: 4px;
-                      font-weight: 400;
-                      transition: all 0.2s;
-                  }}
-                  
-                  .nav-link:hover {{ background: {COLORS['bg']}; }}
-                  
-                  .nav-link.active {{
-                      background: {COLORS['primary']};
-                      color: {COLORS['bg']};
-                      font-weight: 500;
-                  }}
-                  
-                  /* Preserve Databricks notebook styling */
-                  .notebook-container h1,
-                  .notebook-container h2,
-                  .notebook-container h3,
-                  .notebook-container h4,
-                  .notebook-container h5,
-                  .notebook-container h6 {{
-                      font-family: 'DM Sans', sans-serif !important;
-                      color: {COLORS['text']} !important;
-                      font-weight: 600 !important;
-                  }}
-                  
-                  .notebook-container p,
-                  .notebook-container div,
-                  .notebook-container span {{
-                      font-family: 'DM Sans', sans-serif !important;
-                  }}
-                  
-                  /* Preserve output formatting */
-                  .ansiout,
-                  .output_area,
-                  div[class*="output"],
-                  pre,
-                  code {{
-                      font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
-                  }}
-                  
-                  .ansiout,
-                  .output_area,
-                  div[class*="output"] {{
-                      background: {COLORS['light_bg']} !important;
-                      border: 1px solid {COLORS['border']} !important;
-                      border-radius: 4px !important;
-                      padding: 10px !important;
-                      margin: 10px 0 !important;
-                      overflow-x: auto !important;
-                  }}
-                  
-                  /* Hide loading bars and progress indicators */
-                  .progress,
-                  .progress-bar,
-                  [class*="loading"],
-                  [class*="spinner"],
-                  .sk-circle,
-                  .sk-pulse {{
-                      display: none !important;
-                  }}
-                  
-                  /* Hide any JavaScript that might cause loading indicators */
-                  script {{ display: none !important; }}
+                  .nav a:hover {{ background: #e5e5e5; }}
+                  .progress, [class*="loading"], [class*="spinner"] {{ display: none !important; }}
               </style>
           </head>
           <body>
               <div class="header">
-                  <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/811f68f9f55e3a5330b6e6ae1e54c07fc5ec7224f15be529de3400226e2eca3a/db-nav-logo.svg" 
+                  <img src="https://databricks.com/wp-content/uploads/2021/10/db-nav-logo.svg" 
                        class="logo" alt="Databricks">
                   <div class="title">{title}</div>
                   <a href="{os.environ.get('GITHUB_SERVER_URL', '')}/{os.environ.get('GITHUB_REPOSITORY', '')}" 
-                     class="github-link">View on GitHub</a>
+                     class="github-btn">View on GitHub</a>
               </div>
-              <div class="main-container">
-                  <div class="sidebar">
-                      <h3>📚 Documentation</h3>
-                      <a href="index.html" class="nav-link">Overview</a>
-                      <h3 style="margin-top: 30px;">📓 Notebooks</h3>
-          '''
-              
-              # Add notebook links
-              for nb_name in sorted(all_notebooks):
-                  nb_display = nb_name.replace('_', ' ').title()
-                  active = 'active' if nb_name == notebook_name else ''
-                  html += f'            <a href="{nb_name}.html" class="nav-link {active}">{nb_display}</a>\n'
-              
-              html += f'''
-                  </div>
-                  <div class="content">
-                      <div class="notebook-container">
-                          {notebook_html}
-                      </div>
-                  </div>
+              <nav class="nav">
+                  {' '.join(nav_links)}
+              </nav>
+              <div>
+                  {notebook_html}
               </div>
           </body>
           </html>'''
-              
-              return html
 
-          # Main execution
-          try:
-              print(f"Getting details for run ID: {RUN_ID}")
-              
-              # Get run details
-              run_details = get_run_details(RUN_ID)
-              if not run_details:
-                  print("Failed to get run details")
-                  exit(1)
-              
-              print(f"Run details: {json.dumps(run_details, indent=2)}")
-              
-              # Find executed notebook paths from run tasks
-              executed_notebooks = []
-              tasks = run_details.get('tasks', [])
-              
-              for task in tasks:
-                  task_key = task.get('task_key', '')
-                  notebook_task = task.get('notebook_task', {})
-                  
-                  if notebook_task:
-                      # Try to find the executed notebook path
-                      # This might be in different locations depending on how the job was set up
-                      notebook_path = notebook_task.get('notebook_path', '')
-                      
-                      if notebook_path:
-                          executed_notebooks.append({
-                              'task_key': task_key,
-                              'path': notebook_path,
-                              'name': task_key
-                          })
-              
-              print(f"Found {len(executed_notebooks)} executed notebooks:")
-              for nb in executed_notebooks:
-                  print(f"  - {nb['name']}: {nb['path']}")
-              
-              # Export each notebook from job run results
-              exported_notebooks = []
-              for nb in executed_notebooks:
-                  print(f"Exporting {nb['name']} from job run {RUN_ID}...")
-                  
-                  html_content = export_job_run_notebook(RUN_ID, nb['task_key'])
-                  if html_content:
-                      # Create wrapped HTML
-                      all_notebook_names = [n['name'] for n in executed_notebooks]
-                      wrapped_html = create_wrapped_html(nb['name'], html_content, all_notebook_names)
-                      
-                      # Save to file
-                      output_path = f"site/{nb['name']}.html"
-                      with open(output_path, 'w') as f:
-                          f.write(wrapped_html)
-                      
-                      exported_notebooks.append(nb['name'])
-                      print(f"Successfully exported {nb['name']}.html with job run outputs")
-                  else:
-                      print(f"Failed to export {nb['name']} from job run")
-              
-              # Create index.html
-              readme_content = ""
-              if os.path.exists('README.md'):
-                  with open('README.md', 'r') as f:
-                      readme_content = markdown.markdown(f.read())
-              
-              repo_name = os.environ.get('GITHUB_REPOSITORY', '').split('/')[-1]
-              title = ' '.join(word.capitalize() for word in repo_name.split('-')) + ' Accelerator'
-              
-              index_html = f'''<!DOCTYPE html>
+          # Get run details
+          print(f"Getting details for run ID: {RUN_ID}")
+          run_details = get_run_details(RUN_ID)
+          if not run_details:
+              print("Failed to get run details")
+              exit(1)
+
+          # Find notebook tasks
+          notebook_tasks = []
+          for task in run_details.get('tasks', []):
+              task_key = task.get('task_key', '')
+              task_run_id = task.get('run_id')
+              if task.get('notebook_task') and task_run_id:
+                  notebook_tasks.append({'name': task_key, 'run_id': task_run_id})
+
+          print(f"Found {len(notebook_tasks)} notebook tasks")
+          if not notebook_tasks:
+              print("No notebook tasks found")
+              exit(1)
+
+          # Export each notebook
+          exported_notebooks = []
+          all_names = [nb['name'] for nb in notebook_tasks]
+          
+          for nb in notebook_tasks:
+              print(f"Exporting {nb['name']}...")
+              html = export_task_notebook(nb['run_id'])
+              if html:
+                  wrapped = create_simple_html(nb['name'], html, all_names)
+                  with open(f"site/{nb['name']}.html", 'w', encoding='utf-8') as f:
+                      f.write(wrapped)
+                  exported_notebooks.append(nb['name'])
+                  print(f"✓ Exported {nb['name']}.html")
+
+          # Create index page
+          readme_content = ""
+          if os.path.exists('README.md'):
+              with open('README.md', 'r') as f:
+                  readme_content = markdown.markdown(f.read())
+
+          repo_name = os.environ.get('GITHUB_REPOSITORY', '').split('/')[-1]
+          title = ' '.join(word.capitalize() for word in repo_name.split('-')) + ' Accelerator'
+
+          nav_links = ['<a href="index.html" style="background: #FF3621; color: white;">📚 Overview</a>']
+          for nb_name in exported_notebooks:
+              nb_display = nb_name.replace('_', ' ').title()
+              nav_links.append(f'<a href="{nb_name}.html">📓 {nb_display}</a>')
+
+          index_html = f'''<!DOCTYPE html>
           <html>
           <head>
               <title>{title}</title>
-              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
               <style>
-                  body {{
-                      font-family: 'DM Sans', sans-serif;
-                      margin: 0;
-                      padding: 0;
-                      background: {COLORS['bg']};
-                      color: {COLORS['text']};
-                  }}
-                  
-                  .header {{
-                      background: {COLORS['bg']};
-                      padding: 20px 40px;
-                      border-bottom: 1px solid {COLORS['border']};
-                      display: flex;
-                      align-items: center;
-                      gap: 20px;
-                      position: fixed;
-                      top: 0;
-                      width: 100%;
-                      z-index: 1000;
-                  }}
-                  
+                  body {{ font-family: system-ui, sans-serif; margin: 0; padding: 20px; line-height: 1.6; }}
+                  .header {{ display: flex; align-items: center; gap: 16px; padding: 16px 0; 
+                            border-bottom: 2px solid #FF3621; margin-bottom: 20px; }}
                   .logo {{ height: 24px; }}
-                  
-                  .title {{
-                      font-size: 24px;
-                      font-weight: 600;
-                      flex: 1;
-                      text-align: center;
-                      color: {COLORS['text']};
-                  }}
-                  
-                  .github-link {{
-                      background: {COLORS['light_bg']};
-                      padding: 8px 16px;
-                      border-radius: 6px;
-                      text-decoration: none;
-                      color: {COLORS['text']};
-                      font-weight: 500;
-                      transition: all 0.2s;
-                  }}
-                  
-                  .github-link:hover {{ background: {COLORS['border']}; }}
-                  
-                  .main-container {{
-                      display: flex;
-                      margin-top: 80px;
-                      min-height: calc(100vh - 80px);
-                  }}
-                  
-                  .sidebar {{
-                      width: 280px;
-                      background: {COLORS['light_bg']};
-                      padding: 30px 20px;
-                      position: fixed;
-                      left: 0;
-                      top: 80px;
-                      height: calc(100vh - 80px);
-                      overflow-y: auto;
-                  }}
-                  
-                  .sidebar h3 {{
-                      font-size: 16px;
-                      font-weight: 600;
-                      margin: 0 0 20px 12px;
-                      color: {COLORS['text']};
-                  }}
-                  
-                  .content {{
-                      flex: 1;
-                      padding: 20px;
-                      margin-left: 280px;
-                  }}
-                  
-                  .content-container {{
-                      background: {COLORS['bg']};
-                      padding: 40px;
-                      border-radius: 8px;
-                      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                      margin: 0 auto;
-                      max-width: 900px;
-                  }}
-                  
-                  .nav-link {{
-                      display: block;
-                      padding: 10px 12px;
-                      margin: 4px 0;
-                      text-decoration: none;
-                      color: {COLORS['text']};
-                      border-radius: 4px;
-                      font-weight: 400;
-                      transition: all 0.2s;
-                  }}
-                  
-                  .nav-link:hover {{ background: {COLORS['bg']}; }}
-                  
-                  .nav-link.active {{
-                      background: {COLORS['primary']};
-                      color: {COLORS['bg']};
-                      font-weight: 500;
-                  }}
-                  
-                  h1, h2, h3 {{ color: {COLORS['text']}; font-weight: 600; }}
-                  h1 {{ font-size: 32px; margin: 0 0 24px 0; }}
-                  h2 {{ font-size: 24px; margin: 32px 0 16px 0; }}
-                  h3 {{ font-size: 18px; margin: 24px 0 12px 0; }}
-                  p {{ line-height: 1.6; margin: 0 0 16px 0; }}
-                  code {{
-                      background: {COLORS['light_bg']};
-                      padding: 2px 6px;
-                      border-radius: 3px;
-                      font-family: 'Monaco', 'Consolas', monospace;
-                      font-size: 14px;
-                  }}
-                  pre {{
-                      background: {COLORS['light_bg']};
-                      padding: 16px;
-                      border-radius: 6px;
-                      overflow-x: auto;
-                      margin: 16px 0;
-                  }}
-                  ul, ol {{ margin: 0 0 16px 0; padding-left: 24px; line-height: 1.6; }}
-                  a {{ color: {COLORS['primary']}; text-decoration: none; }}
-                  a:hover {{ text-decoration: underline; }}
+                  .title {{ font-size: 24px; font-weight: 600; flex: 1; }}
+                  .nav {{ margin: 16px 0; display: flex; gap: 12px; flex-wrap: wrap; }}
+                  .nav a {{ padding: 8px 12px; text-decoration: none; background: #f5f5f5; 
+                           border-radius: 4px; font-size: 14px; color: #333; }}
+                  .nav a:hover {{ background: #e5e5e5; }}
               </style>
           </head>
           <body>
               <div class="header">
-                  <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/811f68f9f55e3a5330b6e6ae1e54c07fc5ec7224f15be529de3400226e2eca3a/db-nav-logo.svg" 
+                  <img src="https://databricks.com/wp-content/uploads/2021/10/db-nav-logo.svg" 
                        class="logo" alt="Databricks">
                   <div class="title">{title}</div>
                   <a href="{os.environ.get('GITHUB_SERVER_URL', '')}/{os.environ.get('GITHUB_REPOSITORY', '')}" 
-                     class="github-link">View on GitHub</a>
+                     style="background: #FF3621; color: white; padding: 8px 16px; border-radius: 4px; 
+                            text-decoration: none; font-size: 14px;">View on GitHub</a>
               </div>
-              <div class="main-container">
-                  <div class="sidebar">
-                      <h3>📚 Documentation</h3>
-                      <a href="index.html" class="nav-link active">Overview</a>
-          '''
-              
-              if exported_notebooks:
-                  index_html += '            <h3 style="margin-top: 30px;">📓 Notebooks</h3>\n'
-                  for nb_name in sorted(exported_notebooks):
-                      nb_display = nb_name.replace('_', ' ').title()
-                      index_html += f'            <a href="{nb_name}.html" class="nav-link">{nb_display}</a>\n'
-              
-              index_html += f'''
-                  </div>
-                  <div class="content">
-                      <div class="content-container">
-                          {readme_content}
-                      </div>
-                  </div>
+              <nav class="nav">
+                  {' '.join(nav_links)}
+              </nav>
+              <div>
+                  {readme_content}
               </div>
           </body>
           </html>'''
-              
-              with open('site/index.html', 'w') as f:
-                  f.write(index_html)
-              
-              print(f"Created index.html with {len(exported_notebooks)} notebooks")
-              
-          except Exception as e:
-              print(f"Error during export: {str(e)}")
-              import traceback
-              traceback.print_exc()
-              exit(1)
+
+          with open('site/index.html', 'w', encoding='utf-8') as f:
+              f.write(index_html)
+
+          print(f"✓ Created index.html with {len(exported_notebooks)} notebooks")
           EOF
 
-      # Cleanup (same as original)
-      - name: Cleanup PR deployment
-        if: github.event_name == 'pull_request'
-        run: |
-          databricks bundle destroy --target dev --var="environment=${{ env.DEPLOY_ENV }}" || true
-
-      # Phase 3: Deploy to GitHub Pages
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
