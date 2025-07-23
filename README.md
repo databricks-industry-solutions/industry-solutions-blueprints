@@ -18,15 +18,18 @@ This repository provides a modern template for creating Databricks solution acce
 ## 🚀 Getting Started
 
 ### 1. Use This Template
+
 Click "Use this template" to create your new solution accelerator repository.
 
 ### 2. Customize Your Project
+
 - **Update `databricks.yml`**: Change `project_name` and configure your resources
 - **Replace example notebooks**: Add your actual `.ipynb` and `.py` notebooks to the `notebooks/` folder
 - **Update this README**: Replace this content with your solution accelerator description
 - **Add your content**: Include any additional apps, dashboards, or scripts
 
 ### 3. Deploy to Databricks
+
 Follow the standard Databricks Asset Bundles deployment process:
 
 1. Clone your project into your Databricks Workspace
@@ -35,11 +38,12 @@ Follow the standard Databricks Asset Bundles deployment process:
 4. Navigate to the Deployments tab and run your workflow
 
 ### 4. Documentation Website
+
 Your documentation website will be automatically generated and deployed to GitHub Pages whenever you push to the main branch.
 
 ## 📁 Project Structure
 
-```
+```text
 ├── notebooks/                    # Your notebook files (.ipynb and .py)
 ├── apps/                         # Databricks Apps (optional)
 ├── dashboards/                   # Dashboard definitions (optional)
