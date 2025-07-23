@@ -164,12 +164,31 @@ jobs:
               if response.status_code == 200:
                   data = response.json()
                   print(f"Response keys: {list(data.keys())}")
-                  if 'content' in data:
+                  
+                  # Handle 'views' format response
+                  if 'views' in data:
+                      views = data['views']
+                      print(f"Found {len(views)} views in response")
+                      if views:
+                          # Take the first view (should be the notebook content)
+                          view = views[0]
+                          print(f"View keys: {list(view.keys())}")
+                          if 'content' in view:
+                              html_content = base64.b64decode(view['content']).decode('utf-8')
+                              print(f"Successfully decoded HTML content ({len(html_content)} chars)")
+                              return html_content
+                          else:
+                              print("No 'content' key in view")
+                      else:
+                          print("Views array is empty")
+                  # Handle direct 'content' format (fallback)
+                  elif 'content' in data:
                       html_content = base64.b64decode(data['content']).decode('utf-8')
                       print(f"Successfully decoded HTML content ({len(html_content)} chars)")
                       return html_content
                   else:
-                      print("No 'content' key in response")
+                      print("No 'content' or 'views' key in response")
+                      print(f"Full response: {json.dumps(data, indent=2)}")
               else:
                   print(f"Export failed: {response.status_code} - {response.text}")
               return None
