@@ -5,9 +5,21 @@ on:
   push:
     branches: [ main, preview, fix/consistent-html-rendering ]
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   export-notebooks:
     runs-on: html_publisher
+    environment:
+      name: ${{ github.ref_name == 'main' && 'github-pages' || 'preview' }}
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
