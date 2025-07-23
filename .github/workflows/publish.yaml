@@ -2,7 +2,7 @@ name: publish
 
 on:
   push:
-    branches: [ main, preview, feature/modernize-to-2025-standards ]
+    branches: [ main, preview, fix/consistent-html-rendering ]
   workflow_dispatch:
 
 permissions:

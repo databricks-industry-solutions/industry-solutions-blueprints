@@ -55,64 +55,57 @@ def parse_databricks_notebook(filepath):
 
 
 def convert_to_html(filepath):
-    """Convert Databricks .py notebook to HTML matching nbconvert structure"""
+    """Convert Databricks .py notebook to HTML exactly matching nbconvert structure"""
     filename = os.path.basename(filepath)
     name_without_ext = os.path.splitext(filename)[0]
     
     cells = parse_databricks_notebook(filepath)
     html_content = []
     
-    # Add notebook container matching nbconvert structure
-    html_content.append('<div class="jp-Notebook" data-jp-theme-light="true">')
+    # Start with nbconvert container structure (matching what nbconvert generates)
+    html_content.append('<div class="container" id="notebook-container">')
     
     for i, cell in enumerate(cells):
         if cell['type'] == 'markdown':
-            # Convert markdown to HTML
+            # Convert markdown to HTML using nbconvert structure
             md_html = markdown.markdown(
                 cell['content'], 
-                extensions=['fenced_code', 'tables', 'nl2br']
+                extensions=['fenced_code', 'tables', 'nl2br', 'toc']
             )
-            html_content.append(f'''
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper">
-<div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+            html_content.append(f'''<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
 {md_html}
 </div>
 </div>
 </div>''')
         elif cell['type'] == 'code':
-            # Create code cell matching nbconvert structure
+            # Create code cell exactly matching nbconvert structure
             escaped_code = html.escape(cell['content'])
-            html_content.append(f'''
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper">
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="CodeMirror cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span>{escaped_code}</pre></div>
-</div>
+            html_content.append(f'''<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre><span></span>{escaped_code}</pre></div>
 </div>
 </div>
 </div>
 </div>''')
     
-    html_content.append('</div>')
+    html_content.append('</div>')  # Close container
     
-    # Create full HTML document with minimal structure
-    full_html = f'''<!DOCTYPE html>
+    # Create minimal HTML document structure (no full styles, will be wrapped later)
+    body_content = '\\n'.join(html_content)
+    
+    # Create simple HTML structure that matches what nbconvert generates
+    simple_html = f'''<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <title>{name_without_ext}</title>
-    <style>
-        .jp-RenderedHTMLCommon {{ font-family: 'DM Sans', sans-serif; color: #1B3139; }}
-        .jp-RenderedHTMLCommon h1, .jp-RenderedHTMLCommon h2, .jp-RenderedHTMLCommon h3 {{ color: #1B3139; }}
-        .jp-RenderedHTMLCommon code {{ background-color: #F5F5F5; padding: 2px 4px; border-radius: 3px; }}
-        .highlight pre {{ background-color: #F5F5F5; padding: 16px; border-radius: 4px; overflow-x: auto; }}
-    </style>
 </head>
 <body>
-{''.join(html_content)}
+{body_content}
 </body>
 </html>'''
     
@@ -120,7 +113,7 @@ def convert_to_html(filepath):
     output_path = f"site/{name_without_ext}.html"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w') as f:
-        f.write(full_html)
+        f.write(simple_html)
     
     return name_without_ext
 
