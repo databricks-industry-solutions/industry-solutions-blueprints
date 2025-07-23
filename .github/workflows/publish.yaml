@@ -281,10 +281,10 @@ jobs:
           
           # Add notebook navigation
           if notebooks:
-              html += '\\n            <h3 style="margin-top: 30px;">📓 Notebooks</h3>'
+              html += '\n            <h3 style="margin-top: 30px;">📓 Notebooks</h3>'
               for name in sorted(notebooks.keys()):
                   display_name = name.replace('_', ' ').title()
-                  html += f'\\n            <div class="nav-link" onclick="showSection(\\'{name}\\')">📓 {display_name}</div>'
+                  html += f'\n            <div class="nav-link" onclick="showSection(\'{name}\')">📓 {display_name}</div>'
           
           html += f'''
                   </div>

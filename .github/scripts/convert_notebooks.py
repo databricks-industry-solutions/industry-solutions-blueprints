@@ -92,7 +92,7 @@ def convert_to_html_fragment(filepath):
 </div>''')
     
     # Return just the content fragment (no full HTML document)
-    fragment_content = '\\n'.join(html_content)
+    fragment_content = '\n'.join(html_content)
     
     # Write fragment to temp file for the main script to read
     temp_path = f"temp_{name_without_ext}_fragment.html"
