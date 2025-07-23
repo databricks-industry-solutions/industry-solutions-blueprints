@@ -1,0 +1,207 @@
+import os
+import markdown
+import re
+
+# Read README.md
+readme_content = ""
+if os.path.exists('README.md'):
+    with open('README.md', 'r') as f:
+        readme_content = markdown.markdown(f.read())
+
+# Get repository name and format title
+repo_name = 'industry-solutions-blueprints'
+title = ' '.join(word.capitalize() for word in repo_name.split('-')) + ' Accelerator'
+
+# Find notebook files
+notebook_files = []
+if os.path.exists('site'):
+    for f in sorted(os.listdir('site')):
+        if f.endswith('.html') and f != 'index.html':
+            notebook_files.append(f[:-5])
+
+# Databricks brand colors
+colors = {
+    'primary': '#FF3621',
+    'text': '#1B3139',
+    'bg': '#FFFFFF',
+    'light_bg': '#F5F5F5',
+    'border': '#E3E3E3'
+}
+
+# Create index.html with Databricks branding
+html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <title>{title}</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 0; background: {colors['bg']}; color: {colors['text']}; }}
+        .header {{ background: {colors['bg']}; padding: 20px 40px; border-bottom: 1px solid {colors['border']}; display: flex; align-items: center; gap: 20px; position: fixed; top: 0; width: 100%; z-index: 1000; box-sizing: border-box; }}
+        .logo {{ height: 24px; }}
+        .title {{ font-size: 24px; font-weight: 600; flex: 1; text-align: center; color: {colors['text']}; }}
+        .github-link {{ background: {colors['light_bg']}; padding: 8px 16px; border-radius: 6px; text-decoration: none; color: {colors['text']}; font-weight: 500; transition: all 0.2s; }}
+        .github-link:hover {{ background: {colors['border']}; }}
+        .main-container {{ display: flex; margin-top: 80px; min-height: calc(100vh - 80px); }}
+        .sidebar {{ width: 280px; background: {colors['light_bg']}; padding: 30px 20px; position: fixed; left: 0; top: 80px; height: calc(100vh - 80px); overflow-y: auto; box-sizing: border-box; }}
+        .sidebar h3 {{ font-size: 16px; font-weight: 600; margin: 0 0 20px 12px; color: {colors['text']}; }}
+        .content {{ flex: 1; padding: 20px; margin-left: 280px; }}
+        .content-container {{ background: {colors['bg']}; padding: 40px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin: 0 auto; max-width: 900px; }}
+        .nav-link {{ display: block; padding: 10px 12px; margin: 4px 0; text-decoration: none; color: {colors['text']}; border-radius: 4px; font-weight: 400; transition: all 0.2s; }}
+        .nav-link:hover {{ background: {colors['bg']}; }}
+        .nav-link.active {{ background: {colors['primary']}; color: {colors['bg']}; font-weight: 500; }}
+        h1, h2, h3 {{ color: {colors['text']}; font-weight: 600; }}
+        h1 {{ font-size: 32px; margin: 0 0 24px 0; }}
+        h2 {{ font-size: 24px; margin: 32px 0 16px 0; }}
+        h3 {{ font-size: 18px; margin: 24px 0 12px 0; }}
+        p {{ line-height: 1.6; margin: 0 0 16px 0; }}
+        code {{ background: {colors['light_bg']}; padding: 2px 6px; border-radius: 3px; font-family: 'Monaco', 'Consolas', monospace; font-size: 14px; }}
+        pre {{ background: {colors['light_bg']}; padding: 16px; border-radius: 6px; overflow-x: auto; margin: 16px 0; }}
+        ul, ol {{ margin: 0 0 16px 0; padding-left: 24px; line-height: 1.6; }}
+        a {{ color: {colors['primary']}; text-decoration: none; }}
+        a:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/811f68f9f55e3a5330b6e6ae1e54c07fc5ec7224f15be529de3400226e2eca3a/db-nav-logo.svg" class="logo" alt="Databricks">
+        <div class="title">{title}</div>
+        <a href="https://github.com/databricks-industry-solutions/industry-solutions-blueprints" class="github-link">View on GitHub</a>
+    </div>
+    <div class="main-container">
+        <div class="sidebar">
+            <h3>📚 Documentation</h3>
+            <a href="index.html" class="nav-link active">Overview</a>
+'''
+
+# Add notebook links
+if notebook_files:
+    html += '            <h3 style="margin-top: 30px;">📓 Notebooks</h3>\n'
+    for notebook in notebook_files:
+        display_name = notebook.replace('_', ' ').title()
+        html += f'            <a href="{notebook}.html" class="nav-link">{display_name}</a>\n'
+
+html += f'''
+        </div>
+        <div class="content">
+            <div class="content-container">
+                {readme_content}
+            </div>
+        </div>
+    </div>
+</body>
+</html>'''
+
+with open('site/index.html', 'w') as f:
+    f.write(html)
+
+print("Created index.html")
+
+# Apply consistent wrapper to all notebooks
+for notebook in notebook_files:
+    notebook_path = f'site/{notebook}.html'
+    with open(notebook_path, 'r') as f:
+        original_content = f.read()
+    
+    # Extract body content
+    body_match = re.search(r'<body[^>]*>(.*?)</body>', original_content, re.DOTALL)
+    if body_match:
+        notebook_body = body_match.group(1)
+    else:
+        notebook_body = original_content
+    
+    # Extract styles from head if present
+    style_content = ""
+    style_matches = re.findall(r'<style[^>]*>(.*?)</style>', original_content, re.DOTALL)
+    for style in style_matches:
+        style_content += style + "\n"
+    
+    # Create wrapped notebook with consistent branding
+    display_name = notebook.replace('_', ' ').title()
+    wrapped = f'''<!DOCTYPE html>
+<html>
+<head>
+    <title>{display_name} - {title}</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {{ font-family: 'DM Sans', sans-serif; margin: 0; padding: 0; background: {colors['bg']}; color: {colors['text']}; }}
+        .header {{ background: {colors['bg']}; padding: 20px 40px; border-bottom: 1px solid {colors['border']}; display: flex; align-items: center; gap: 20px; position: fixed; top: 0; width: 100%; z-index: 1000; box-sizing: border-box; }}
+        .logo {{ height: 24px; }}
+        .title {{ font-size: 24px; font-weight: 600; flex: 1; text-align: center; color: {colors['text']}; }}
+        .github-link {{ background: {colors['light_bg']}; padding: 8px 16px; border-radius: 6px; text-decoration: none; color: {colors['text']}; font-weight: 500; transition: all 0.2s; }}
+        .github-link:hover {{ background: {colors['border']}; }}
+        .main-container {{ display: flex; margin-top: 80px; min-height: calc(100vh - 80px); }}
+        .sidebar {{ width: 280px; background: {colors['light_bg']}; padding: 30px 20px; position: fixed; left: 0; top: 80px; height: calc(100vh - 80px); overflow-y: auto; box-sizing: border-box; }}
+        .sidebar h3 {{ font-size: 16px; font-weight: 600; margin: 0 0 20px 12px; color: {colors['text']}; }}
+        .content {{ flex: 1; padding: 20px; margin-left: 280px; }}
+        .notebook-container {{ background: {colors['bg']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 40px; margin: 0 auto; max-width: 900px; }}
+        .nav-link {{ display: block; padding: 10px 12px; margin: 4px 0; text-decoration: none; color: {colors['text']}; border-radius: 4px; font-weight: 400; transition: all 0.2s; }}
+        .nav-link:hover {{ background: {colors['bg']}; }}
+        .nav-link.active {{ background: {colors['primary']}; color: {colors['bg']}; font-weight: 500; }}
+        /* Notebook specific styles */
+        .jp-RenderedHTMLCommon {{ font-family: 'DM Sans', sans-serif !important; color: {colors['text']} !important; }}
+        .jp-RenderedHTMLCommon h1, .jp-RenderedHTMLCommon h2, .jp-RenderedHTMLCommon h3,
+        .rendered_html h1, .rendered_html h2, .rendered_html h3 {{ 
+            color: {colors['text']} !important; 
+            font-weight: 600 !important;
+        }}
+        .jp-RenderedHTMLCommon code, .rendered_html code {{ 
+            background-color: {colors['light_bg']} !important; 
+            padding: 2px 4px !important; 
+            border-radius: 3px !important;
+            color: {colors['text']} !important;
+        }}
+        .highlight pre, .jp-InputArea pre, .input_area pre {{ 
+            background-color: {colors['light_bg']} !important; 
+            padding: 16px !important; 
+            border-radius: 4px !important; 
+            overflow-x: auto !important;
+            border: 1px solid {colors['border']} !important;
+            margin: 8px 0 !important;
+        }}
+        .jp-OutputArea-output pre {{ 
+            background-color: transparent !important;
+            padding: 8px !important;
+        }}
+        /* Hide input/output prompts */
+        .jp-InputPrompt, .jp-OutputPrompt {{ display: none !important; }}
+        /* Additional notebook styles */
+        {style_content}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/811f68f9f55e3a5330b6e6ae1e54c07fc5ec7224f15be529de3400226e2eca3a/db-nav-logo.svg" class="logo" alt="Databricks">
+        <div class="title">{title}</div>
+        <a href="https://github.com/databricks-industry-solutions/industry-solutions-blueprints" class="github-link">View on GitHub</a>
+    </div>
+    <div class="main-container">
+        <div class="sidebar">
+            <h3>📚 Documentation</h3>
+            <a href="index.html" class="nav-link">Overview</a>
+'''
+    
+    # Add notebook links
+    if notebook_files:
+        wrapped += '            <h3 style="margin-top: 30px;">📓 Notebooks</h3>\n'
+        for nb in notebook_files:
+            nb_display = nb.replace('_', ' ').title()
+            active = 'active' if nb == notebook else ''
+            wrapped += f'            <a href="{nb}.html" class="nav-link {active}">{nb_display}</a>\n'
+    
+    wrapped += f'''
+        </div>
+        <div class="content">
+            <div class="notebook-container">
+                {notebook_body}
+            </div>
+        </div>
+    </div>
+</body>
+</html>'''
+    
+    with open(notebook_path, 'w') as f:
+        f.write(wrapped)
+    
+    print(f"Wrapped {notebook}")
+
+print("Done!")

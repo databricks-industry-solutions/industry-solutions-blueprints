@@ -1,10 +1,8 @@
-name: Databricks CI/CD + Publish
+name: Databricks CI/CD + Publish Test
 
 on:
   push:
     branches: [ main, preview, fix/consistent-html-rendering ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -17,14 +15,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  databricks-ci-publish:
+  databricks-ci-publish-test:
     runs-on: html_publisher
     environment:
       name: ${{ github.ref_name == 'main' && 'github-pages' || 'preview' }}
       url: ${{ steps.deployment.outputs.page_url }}
-    
+
     steps:
-      # Phase 1: Databricks CI/CD (from databricks-ci.yml)
+      # Phase 1: Copy exact steps from databricks-ci.yml
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -110,23 +108,35 @@ jobs:
           
           echo "Using warehouse with ID: $WAREHOUSE_ID"
           echo "WAREHOUSE_ID=$WAREHOUSE_ID" >> $GITHUB_ENV
+          # Set default environment to dev
           echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
 
       - name: Validate bundle
         run: databricks bundle validate --var="environment=${{ env.DEPLOY_ENV }}"
 
-      - name: Run Databricks workflow
+      - name: Run and monitor workflow
         run: |
           echo "Starting workflow execution..."
-          databricks bundle run demo_workflow --target dev --var="environment=${{ env.DEPLOY_ENV }}"
+          RUN_OUTPUT=$(databricks bundle run demo_workflow --target dev --var="environment=${{ env.DEPLOY_ENV }}" 2>&1)
+          echo "$RUN_OUTPUT"
+          
+          # Extract run ID from output
+          RUN_ID=$(echo "$RUN_OUTPUT" | grep -o 'Run URL:.*runs/[0-9]*' | grep -o '[0-9]*$' || echo "")
+          if [ -z "$RUN_ID" ]; then
+            echo "Could not extract run ID from output"
+            exit 1
+          fi
+          
+          echo "Extracted run ID: $RUN_ID"
+          echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
 
-      # Phase 2: Export executed notebooks and publish
+      # Phase 2: Export executed notebooks with outputs
       - name: Install additional dependencies
         run: |
           pip install --upgrade pip
           pip install requests markdown pyyaml
 
-      - name: Export notebooks from Databricks and create site
+      - name: Export executed notebooks from job run
         env:
           DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
           DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
@@ -137,15 +147,13 @@ jobs:
           import os
           import json
           import requests
-          import re
           import base64
-          import yaml
           import markdown
-          from pathlib import Path
+          import time
 
-          # Configuration
           DATABRICKS_HOST = os.environ['DATABRICKS_HOST']
           DATABRICKS_TOKEN = os.environ['DATABRICKS_TOKEN']
+          RUN_ID = os.environ['RUN_ID']
           headers = {'Authorization': f'Bearer {DATABRICKS_TOKEN}'}
 
           # Databricks brand colors
@@ -157,42 +165,27 @@ jobs:
               'border': '#E3E3E3'
           }
 
-          def get_current_user():
-              """Get current workspace user"""
-              response = requests.get(f"{DATABRICKS_HOST}/api/2.0/preview/scim/v2/Me", headers=headers)
+          def get_run_details(run_id):
+              """Get job run details to find executed notebook locations"""
+              response = requests.get(
+                  f"{DATABRICKS_HOST}/api/2.1/jobs/runs/get",
+                  headers=headers,
+                  params={'run_id': run_id}
+              )
+              
               if response.status_code == 200:
-                  return response.json()['userName']
-              return 'unknown'
+                  return response.json()
+              else:
+                  print(f"Failed to get run details: {response.status_code} - {response.text}")
+                  return None
 
-          def parse_databricks_yml():
-              """Parse databricks.yml to find notebooks in jobs"""
-              with open('databricks.yml', 'r') as f:
-                  config = yaml.safe_load(f)
-              
-              bundle_name = config.get('bundle', {}).get('name', 'unknown')
-              notebooks = []
-              
-              jobs = config.get('resources', {}).get('jobs', {})
-              for job_name, job_config in jobs.items():
-                  tasks = job_config.get('tasks', [])
-                  for task in tasks:
-                      notebook_task = task.get('notebook_task', {})
-                      if 'notebook_path' in notebook_task:
-                          notebook_path = notebook_task['notebook_path']
-                          # Remove leading ./ if present
-                          if notebook_path.startswith('./'):
-                              notebook_path = notebook_path[2:]
-                          notebooks.append(notebook_path)
-              
-              return bundle_name, notebooks
-
-          def export_notebook_html(workspace_path):
-              """Export notebook HTML with outputs from Databricks"""
+          def export_notebook_html(notebook_path, output_name):
+              """Export notebook HTML from workspace"""
               response = requests.get(
                   f"{DATABRICKS_HOST}/api/2.0/workspace/export",
                   headers=headers,
                   params={
-                      'path': workspace_path,
+                      'path': notebook_path,
                       'format': 'HTML'
                   }
               )
@@ -202,23 +195,14 @@ jobs:
                   html_content = base64.b64decode(data['content']).decode('utf-8')
                   return html_content
               else:
-                  print(f"Failed to export {workspace_path}: {response.status_code} - {response.text}")
+                  print(f"Failed to export {notebook_path}: {response.status_code} - {response.text}")
                   return None
 
           def create_wrapped_html(notebook_name, notebook_html, all_notebooks):
-              """Wrap notebook HTML with consistent branding"""
-              # Extract body content from Databricks export
-              body_match = re.search(r'<body[^>]*>(.*?)</body>', notebook_html, re.DOTALL)
-              body_content = body_match.group(1) if body_match else notebook_html
-              
-              # Get repository info
+              """Wrap notebook HTML with Databricks branding"""
               repo_name = os.environ.get('GITHUB_REPOSITORY', '').split('/')[-1]
               title = ' '.join(word.capitalize() for word in repo_name.split('-')) + ' Accelerator'
-              display_name = os.path.basename(notebook_name).replace('_', ' ').title()
-              if display_name.endswith('.Py'):
-                  display_name = display_name[:-3]
-              elif display_name.endswith('.Ipynb'):
-                  display_name = display_name[:-6]
+              display_name = notebook_name.replace('_', ' ').title()
 
               html = f'''<!DOCTYPE html>
           <html>
@@ -229,7 +213,7 @@ jobs:
                   * {{ box-sizing: border-box; }}
                   
                   body {{
-                      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+                      font-family: 'DM Sans', sans-serif !important;
                       margin: 0;
                       padding: 0;
                       background: {COLORS['bg']};
@@ -331,7 +315,7 @@ jobs:
                       font-weight: 500;
                   }}
                   
-                  /* Ensure Databricks content maintains styling */
+                  /* Preserve Databricks notebook styling */
                   .notebook-container h1,
                   .notebook-container h2,
                   .notebook-container h3,
@@ -353,34 +337,20 @@ jobs:
                   .ansiout,
                   .output_area,
                   div[class*="output"],
-                  pre {{
+                  pre,
+                  code {{
                       font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
+                  }}
+                  
+                  .ansiout,
+                  .output_area,
+                  div[class*="output"] {{
                       background: {COLORS['light_bg']} !important;
                       border: 1px solid {COLORS['border']} !important;
                       border-radius: 4px !important;
                       padding: 10px !important;
                       margin: 10px 0 !important;
                       overflow-x: auto !important;
-                  }}
-                  
-                  /* Tables */
-                  .notebook-container table {{
-                      border-collapse: collapse;
-                      margin: 16px 0;
-                      font-family: 'DM Sans', sans-serif !important;
-                      width: 100%;
-                  }}
-                  
-                  .notebook-container th,
-                  .notebook-container td {{
-                      border: 1px solid {COLORS['border']};
-                      padding: 8px 12px;
-                      text-align: left;
-                  }}
-                  
-                  .notebook-container th {{
-                      background: {COLORS['light_bg']};
-                      font-weight: 600;
                   }}
               </style>
           </head>
@@ -400,23 +370,16 @@ jobs:
           '''
               
               # Add notebook links
-              for nb_path in sorted(all_notebooks):
-                  nb_name = os.path.basename(nb_path)
-                  if nb_name.endswith('.py'):
-                      nb_name = nb_name[:-3]
-                  elif nb_name.endswith('.ipynb'):
-                      nb_name = nb_name[:-6]
-                  
-                  safe_name = nb_name.replace(' ', '_').lower()
+              for nb_name in sorted(all_notebooks):
                   nb_display = nb_name.replace('_', ' ').title()
-                  active = 'active' if nb_path == notebook_name else ''
-                  html += f'            <a href="{safe_name}.html" class="nav-link {active}">{nb_display}</a>\n'
+                  active = 'active' if nb_name == notebook_name else ''
+                  html += f'            <a href="{nb_name}.html" class="nav-link {active}">{nb_display}</a>\n'
               
               html += f'''
                   </div>
                   <div class="content">
                       <div class="notebook-container">
-                          {body_content}
+                          {notebook_html}
                       </div>
                   </div>
               </div>
@@ -427,45 +390,60 @@ jobs:
 
           # Main execution
           try:
-              # Get workspace info
-              current_user = get_current_user()
-              print(f"Current user: {current_user}")
+              print(f"Getting details for run ID: {RUN_ID}")
               
-              # Parse databricks.yml
-              bundle_name, notebooks = parse_databricks_yml()
-              print(f"Bundle name: {bundle_name}")
-              print(f"Found {len(notebooks)} notebooks: {notebooks}")
+              # Get run details
+              run_details = get_run_details(RUN_ID)
+              if not run_details:
+                  print("Failed to get run details")
+                  exit(1)
               
-              # Export notebooks
-              exported_notebooks = []
-              for notebook_path in notebooks:
-                  # Construct workspace path
-                  workspace_path = f"/Users/{current_user}/{bundle_name}-dev/{notebook_path}"
-                  print(f"Exporting from workspace path: {workspace_path}")
+              print(f"Run details: {json.dumps(run_details, indent=2)}")
+              
+              # Find executed notebook paths from run tasks
+              executed_notebooks = []
+              tasks = run_details.get('tasks', [])
+              
+              for task in tasks:
+                  task_key = task.get('task_key', '')
+                  notebook_task = task.get('notebook_task', {})
                   
-                  # Export HTML
-                  html_content = export_notebook_html(workspace_path)
+                  if notebook_task:
+                      # Try to find the executed notebook path
+                      # This might be in different locations depending on how the job was set up
+                      notebook_path = notebook_task.get('notebook_path', '')
+                      
+                      if notebook_path:
+                          executed_notebooks.append({
+                              'task_key': task_key,
+                              'path': notebook_path,
+                              'name': task_key
+                          })
+              
+              print(f"Found {len(executed_notebooks)} executed notebooks:")
+              for nb in executed_notebooks:
+                  print(f"  - {nb['name']}: {nb['path']}")
+              
+              # Export each notebook
+              exported_notebooks = []
+              for nb in executed_notebooks:
+                  print(f"Exporting {nb['name']} from {nb['path']}...")
+                  
+                  html_content = export_notebook_html(nb['path'], nb['name'])
                   if html_content:
                       # Create wrapped HTML
-                      wrapped_html = create_wrapped_html(notebook_path, html_content, notebooks)
+                      all_notebook_names = [n['name'] for n in executed_notebooks]
+                      wrapped_html = create_wrapped_html(nb['name'], html_content, all_notebook_names)
                       
                       # Save to file
-                      notebook_name = os.path.basename(notebook_path)
-                      if notebook_name.endswith('.py'):
-                          notebook_name = notebook_name[:-3]
-                      elif notebook_name.endswith('.ipynb'):
-                          notebook_name = notebook_name[:-6]
-                      
-                      safe_name = notebook_name.replace(' ', '_').lower()
-                      output_path = f"site/{safe_name}.html"
-                      
+                      output_path = f"site/{nb['name']}.html"
                       with open(output_path, 'w') as f:
                           f.write(wrapped_html)
                       
-                      exported_notebooks.append(notebook_path)
-                      print(f"Successfully exported {notebook_path} to {output_path}")
+                      exported_notebooks.append(nb['name'])
+                      print(f"Successfully exported {nb['name']}.html")
                   else:
-                      print(f"Failed to export {notebook_path}")
+                      print(f"Failed to export {nb['name']}")
               
               # Create index.html
               readme_content = ""
@@ -623,16 +601,9 @@ jobs:
               
               if exported_notebooks:
                   index_html += '            <h3 style="margin-top: 30px;">📓 Notebooks</h3>\n'
-                  for nb_path in sorted(exported_notebooks):
-                      nb_name = os.path.basename(nb_path)
-                      if nb_name.endswith('.py'):
-                          nb_name = nb_name[:-3]
-                      elif nb_name.endswith('.ipynb'):
-                          nb_name = nb_name[:-6]
-                      
-                      safe_name = nb_name.replace(' ', '_').lower()
+                  for nb_name in sorted(exported_notebooks):
                       nb_display = nb_name.replace('_', ' ').title()
-                      index_html += f'            <a href="{safe_name}.html" class="nav-link">{nb_display}</a>\n'
+                      index_html += f'            <a href="{nb_name}.html" class="nav-link">{nb_display}</a>\n'
               
               index_html += f'''
                   </div>
@@ -657,6 +628,12 @@ jobs:
               exit(1)
           EOF
 
+      # Cleanup (same as original)
+      - name: Cleanup PR deployment
+        if: github.event_name == 'pull_request'
+        run: |
+          databricks bundle destroy --target dev --var="environment=${{ env.DEPLOY_ENV }}" || true
+
       # Phase 3: Deploy to GitHub Pages
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -666,9 +643,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-      # Cleanup (optional - only on PR close)
-      - name: Cleanup PR deployment
-        if: github.event_name == 'pull_request' && github.event.action == 'closed'
-        run: |
-          databricks bundle destroy --target dev --var="environment=${{ env.DEPLOY_ENV }}" || true
