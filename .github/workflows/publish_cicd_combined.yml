@@ -1,0 +1,476 @@
+name: Export Databricks Notebook HTML
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, preview, fix/consistent-html-rendering ]
+
+jobs:
+  export-notebooks:
+    runs-on: html_publisher
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests markdown
+
+      - name: Export notebooks as HTML from Databricks
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+        run: |
+          mkdir -p site
+          
+          # Python script to export notebooks
+          python3 << 'EOF'
+          import os
+          import json
+          import requests
+          import re
+          import markdown
+          from pathlib import Path
+          
+          # Databricks API configuration
+          host = os.environ['DATABRICKS_HOST']
+          token = os.environ['DATABRICKS_TOKEN']
+          headers = {'Authorization': f'Bearer {token}'}
+          
+          # Get repository info
+          repo_name = os.environ.get('GITHUB_REPOSITORY', '').split('/')[-1]
+          title = ' '.join(word.capitalize() for word in repo_name.split('-')) + ' Accelerator'
+          
+          # Databricks brand colors
+          colors = {
+              'primary': '#FF3621',
+              'text': '#1B3139', 
+              'bg': '#FFFFFF',
+              'light_bg': '#F5F5F5',
+              'border': '#E3E3E3'
+          }
+          
+          # Function to export notebook as HTML
+          def export_notebook(notebook_path, output_name):
+              """Export a notebook from Databricks workspace as HTML"""
+              export_url = f"{host}/api/2.0/workspace/export"
+              
+              params = {
+                  'path': notebook_path,
+                  'format': 'HTML'
+              }
+              
+              response = requests.get(export_url, headers=headers, params=params)
+              
+              if response.status_code == 200:
+                  data = response.json()
+                  import base64
+                  html_content = base64.b64decode(data['content']).decode('utf-8')
+                  
+                  # Save raw HTML
+                  with open(f'site/{output_name}_raw.html', 'w') as f:
+                      f.write(html_content)
+                  
+                  return html_content
+              else:
+                  print(f"Failed to export {notebook_path}: {response.status_code}")
+                  print(response.text)
+                  return None
+          
+          # List of notebooks to export (update paths as needed)
+          notebooks = [
+              {
+                  'path': '/Workspace/Users/your-email@databricks.com/demo/notebook1',
+                  'name': 'notebook1'
+              },
+              {
+                  'path': '/Workspace/Users/your-email@databricks.com/demo/notebook2', 
+                  'name': 'notebook2'
+              }
+          ]
+          
+          # Export each notebook
+          exported_notebooks = []
+          for nb in notebooks:
+              print(f"Exporting {nb['name']}...")
+              html = export_notebook(nb['path'], nb['name'])
+              if html:
+                  exported_notebooks.append(nb['name'])
+          
+          # Create wrapper template
+          def wrap_notebook(notebook_name, notebook_html):
+              """Wrap Databricks HTML export with consistent branding"""
+              # Extract body content from Databricks export
+              body_match = re.search(r'<body[^>]*>(.*?)</body>', notebook_html, re.DOTALL)
+              if body_match:
+                  body_content = body_match.group(1)
+              else:
+                  body_content = notebook_html
+              
+              # Extract any styles from the original
+              style_content = ""
+              style_matches = re.findall(r'<style[^>]*>(.*?)</style>', notebook_html, re.DOTALL)
+              for style in style_matches:
+                  style_content += style + "\n"
+              
+              display_name = notebook_name.replace('_', ' ').title()
+              
+              wrapped = f'''<!DOCTYPE html>
+          <html>
+          <head>
+              <title>{display_name} - {title}</title>
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+              <style>
+                  /* Global styles */
+                  body {{ 
+                      font-family: 'DM Sans', sans-serif !important; 
+                      margin: 0; 
+                      padding: 0; 
+                      background: {colors['bg']}; 
+                      color: {colors['text']}; 
+                  }}
+                  .header {{ 
+                      background: {colors['bg']}; 
+                      padding: 20px 40px; 
+                      border-bottom: 1px solid {colors['border']}; 
+                      display: flex; 
+                      align-items: center; 
+                      gap: 20px; 
+                      position: fixed; 
+                      top: 0; 
+                      width: 100%; 
+                      z-index: 1000; 
+                      box-sizing: border-box; 
+                  }}
+                  .logo {{ height: 24px; }}
+                  .title {{ 
+                      font-size: 24px; 
+                      font-weight: 600; 
+                      flex: 1; 
+                      text-align: center; 
+                      color: {colors['text']}; 
+                  }}
+                  .github-link {{ 
+                      background: {colors['light_bg']}; 
+                      padding: 8px 16px; 
+                      border-radius: 6px; 
+                      text-decoration: none; 
+                      color: {colors['text']}; 
+                      font-weight: 500; 
+                      transition: all 0.2s; 
+                  }}
+                  .github-link:hover {{ background: {colors['border']}; }}
+                  .main-container {{ 
+                      display: flex; 
+                      margin-top: 80px; 
+                      min-height: calc(100vh - 80px); 
+                  }}
+                  .sidebar {{ 
+                      width: 280px; 
+                      background: {colors['light_bg']}; 
+                      padding: 30px 20px; 
+                      position: fixed; 
+                      left: 0; 
+                      top: 80px; 
+                      height: calc(100vh - 80px); 
+                      overflow-y: auto; 
+                      box-sizing: border-box; 
+                  }}
+                  .sidebar h3 {{ 
+                      font-size: 16px; 
+                      font-weight: 600; 
+                      margin: 0 0 20px 12px; 
+                      color: {colors['text']}; 
+                  }}
+                  .content {{ 
+                      flex: 1; 
+                      padding: 20px; 
+                      margin-left: 280px; 
+                  }}
+                  .notebook-container {{ 
+                      background: {colors['bg']}; 
+                      border-radius: 8px; 
+                      box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+                      padding: 40px; 
+                      margin: 0 auto; 
+                      max-width: 1200px; 
+                  }}
+                  .nav-link {{ 
+                      display: block; 
+                      padding: 10px 12px; 
+                      margin: 4px 0; 
+                      text-decoration: none; 
+                      color: {colors['text']}; 
+                      border-radius: 4px; 
+                      font-weight: 400; 
+                      transition: all 0.2s; 
+                  }}
+                  .nav-link:hover {{ background: {colors['bg']}; }}
+                  .nav-link.active {{ 
+                      background: {colors['primary']}; 
+                      color: {colors['bg']}; 
+                      font-weight: 500; 
+                  }}
+                  
+                  /* Override Databricks notebook styles */
+                  .ansiout, .output_area, div[class*="output"] {{
+                      font-family: 'Monaco', 'Consolas', monospace !important;
+                      background: {colors['light_bg']} !important;
+                      border: 1px solid {colors['border']} !important;
+                      border-radius: 4px !important;
+                      padding: 10px !important;
+                      margin: 10px 0 !important;
+                  }}
+                  
+                  /* Ensure consistent fonts in notebook content */
+                  h1, h2, h3, h4, h5, h6 {{
+                      font-family: 'DM Sans', sans-serif !important;
+                      color: {colors['text']} !important;
+                      font-weight: 600 !important;
+                  }}
+                  
+                  p, div, span {{
+                      font-family: 'DM Sans', sans-serif !important;
+                      color: {colors['text']} !important;
+                  }}
+                  
+                  code, pre {{
+                      background-color: {colors['light_bg']} !important;
+                      border: 1px solid {colors['border']} !important;
+                      border-radius: 4px !important;
+                  }}
+                  
+                  /* Original Databricks styles */
+                  {style_content}
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/811f68f9f55e3a5330b6e6ae1e54c07fc5ec7224f15be529de3400226e2eca3a/db-nav-logo.svg" class="logo" alt="Databricks">
+                  <div class="title">{title}</div>
+                  <a href="{os.environ.get('GITHUB_SERVER_URL', '')}/{os.environ.get('GITHUB_REPOSITORY', '')}" class="github-link">View on GitHub</a>
+              </div>
+              <div class="main-container">
+                  <div class="sidebar">
+                      <h3>📚 Documentation</h3>
+                      <a href="index.html" class="nav-link">Overview</a>
+                      <h3 style="margin-top: 30px;">📓 Notebooks</h3>
+          '''
+              
+              # Add notebook links
+              for nb in exported_notebooks:
+                  nb_display = nb.replace('_', ' ').title()
+                  active = 'active' if nb == notebook_name else ''
+                  wrapped += f'            <a href="{nb}.html" class="nav-link {active}">{nb_display}</a>\n'
+              
+              wrapped += f'''
+                  </div>
+                  <div class="content">
+                      <div class="notebook-container">
+                          {body_content}
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>'''
+              
+              return wrapped
+          
+          # Wrap each exported notebook
+          for nb_name in exported_notebooks:
+              raw_path = f'site/{nb_name}_raw.html'
+              if os.path.exists(raw_path):
+                  with open(raw_path, 'r') as f:
+                      raw_html = f.read()
+                  
+                  wrapped_html = wrap_notebook(nb_name, raw_html)
+                  
+                  with open(f'site/{nb_name}.html', 'w') as f:
+                      f.write(wrapped_html)
+                  
+                  print(f"Wrapped {nb_name}.html")
+          
+          # Create index.html
+          readme_content = ""
+          if os.path.exists('README.md'):
+              with open('README.md', 'r') as f:
+                  readme_content = markdown.markdown(f.read())
+          
+          index_html = f'''<!DOCTYPE html>
+          <html>
+          <head>
+              <title>{title}</title>
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+              <style>
+                  body {{ 
+                      font-family: 'DM Sans', sans-serif; 
+                      margin: 0; 
+                      padding: 0; 
+                      background: {colors['bg']}; 
+                      color: {colors['text']}; 
+                  }}
+                  .header {{ 
+                      background: {colors['bg']}; 
+                      padding: 20px 40px; 
+                      border-bottom: 1px solid {colors['border']}; 
+                      display: flex; 
+                      align-items: center; 
+                      gap: 20px; 
+                      position: fixed; 
+                      top: 0; 
+                      width: 100%; 
+                      z-index: 1000; 
+                      box-sizing: border-box; 
+                  }}
+                  .logo {{ height: 24px; }}
+                  .title {{ 
+                      font-size: 24px; 
+                      font-weight: 600; 
+                      flex: 1; 
+                      text-align: center; 
+                      color: {colors['text']}; 
+                  }}
+                  .github-link {{ 
+                      background: {colors['light_bg']}; 
+                      padding: 8px 16px; 
+                      border-radius: 6px; 
+                      text-decoration: none; 
+                      color: {colors['text']}; 
+                      font-weight: 500; 
+                      transition: all 0.2s; 
+                  }}
+                  .github-link:hover {{ background: {colors['border']}; }}
+                  .main-container {{ 
+                      display: flex; 
+                      margin-top: 80px; 
+                      min-height: calc(100vh - 80px); 
+                  }}
+                  .sidebar {{ 
+                      width: 280px; 
+                      background: {colors['light_bg']}; 
+                      padding: 30px 20px; 
+                      position: fixed; 
+                      left: 0; 
+                      top: 80px; 
+                      height: calc(100vh - 80px); 
+                      overflow-y: auto; 
+                      box-sizing: border-box; 
+                  }}
+                  .sidebar h3 {{ 
+                      font-size: 16px; 
+                      font-weight: 600; 
+                      margin: 0 0 20px 12px; 
+                      color: {colors['text']}; 
+                  }}
+                  .content {{ 
+                      flex: 1; 
+                      padding: 20px; 
+                      margin-left: 280px; 
+                  }}
+                  .content-container {{ 
+                      background: {colors['bg']}; 
+                      padding: 40px; 
+                      border-radius: 8px; 
+                      box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+                      margin: 0 auto; 
+                      max-width: 900px; 
+                  }}
+                  .nav-link {{ 
+                      display: block; 
+                      padding: 10px 12px; 
+                      margin: 4px 0; 
+                      text-decoration: none; 
+                      color: {colors['text']}; 
+                      border-radius: 4px; 
+                      font-weight: 400; 
+                      transition: all 0.2s; 
+                  }}
+                  .nav-link:hover {{ background: {colors['bg']}; }}
+                  .nav-link.active {{ 
+                      background: {colors['primary']}; 
+                      color: {colors['bg']}; 
+                      font-weight: 500; 
+                  }}
+                  h1, h2, h3 {{ 
+                      color: {colors['text']}; 
+                      font-weight: 600; 
+                  }}
+                  h1 {{ font-size: 32px; margin: 0 0 24px 0; }}
+                  h2 {{ font-size: 24px; margin: 32px 0 16px 0; }}
+                  h3 {{ font-size: 18px; margin: 24px 0 12px 0; }}
+                  p {{ line-height: 1.6; margin: 0 0 16px 0; }}
+                  code {{ 
+                      background: {colors['light_bg']}; 
+                      padding: 2px 6px; 
+                      border-radius: 3px; 
+                      font-family: 'Monaco', 'Consolas', monospace; 
+                      font-size: 14px; 
+                  }}
+                  pre {{ 
+                      background: {colors['light_bg']}; 
+                      padding: 16px; 
+                      border-radius: 6px; 
+                      overflow-x: auto; 
+                      margin: 16px 0; 
+                  }}
+                  ul, ol {{ 
+                      margin: 0 0 16px 0; 
+                      padding-left: 24px; 
+                      line-height: 1.6; 
+                  }}
+                  a {{ 
+                      color: {colors['primary']}; 
+                      text-decoration: none; 
+                  }}
+                  a:hover {{ text-decoration: underline; }}
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/811f68f9f55e3a5330b6e6ae1e54c07fc5ec7224f15be529de3400226e2eca3a/db-nav-logo.svg" class="logo" alt="Databricks">
+                  <div class="title">{title}</div>
+                  <a href="{os.environ.get('GITHUB_SERVER_URL', '')}/{os.environ.get('GITHUB_REPOSITORY', '')}" class="github-link">View on GitHub</a>
+              </div>
+              <div class="main-container">
+                  <div class="sidebar">
+                      <h3>📚 Documentation</h3>
+                      <a href="index.html" class="nav-link active">Overview</a>
+          '''
+          
+          if exported_notebooks:
+              index_html += '            <h3 style="margin-top: 30px;">📓 Notebooks</h3>\n'
+              for nb in exported_notebooks:
+                  nb_display = nb.replace('_', ' ').title()
+                  index_html += f'            <a href="{nb}.html" class="nav-link">{nb_display}</a>\n'
+          
+          index_html += f'''
+                  </div>
+                  <div class="content">
+                      <div class="content-container">
+                          {readme_content}
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>'''
+          
+          with open('site/index.html', 'w') as f:
+              f.write(index_html)
+          
+          print(f"Created index.html with {len(exported_notebooks)} notebooks")
+          EOF
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
