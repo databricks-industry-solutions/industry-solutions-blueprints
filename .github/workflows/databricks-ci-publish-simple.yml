@@ -1,0 +1,607 @@
+name: Databricks CI/CD + Publish (Simple)
+
+on:
+  push:
+    branches: [ main, preview, fix/consistent-html-rendering ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  databricks-ci-publish:
+    runs-on: html_publisher
+    environment:
+      name: ${{ github.ref_name == 'main' && 'github-pages' || 'preview' }}
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests markdown pyyaml
+
+      - name: Set up Databricks CLI
+        uses: databricks/setup-cli@main
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+
+      - name: Configure Databricks CLI authentication
+        run: |
+          echo "[DEFAULT]" > ~/.databrickscfg
+          echo "host = https://e2-demo-field-eng.cloud.databricks.com" >> ~/.databrickscfg
+          echo "token = ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}" >> ~/.databrickscfg
+
+      - name: Test Databricks connection
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+        run: |
+          echo "Testing Databricks connection..."
+          curl -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+               "$DATABRICKS_HOST/api/2.0/clusters/list" || echo "Connection test failed"
+
+      - name: Get current user
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+        run: |
+          echo "Getting current user..."
+          USER_INFO=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+                          "$DATABRICKS_HOST/api/2.0/preview/scim/v2/Me")
+          echo "User info: $USER_INFO"
+          CURRENT_USER=$(echo "$USER_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('userName', 'unknown'))")
+          echo "CURRENT_USER=$CURRENT_USER" >> $GITHUB_ENV
+          echo "Current user: $CURRENT_USER"
+
+      - name: Deploy notebooks to workspace
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+        run: |
+          echo "Deploying notebooks to workspace..."
+          
+          # Create workspace directory
+          WORKSPACE_DIR="/Users/${{ env.CURRENT_USER }}/github-pages-demo"
+          echo "Creating workspace directory: $WORKSPACE_DIR"
+          
+          curl -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+               -H "Content-Type: application/json" \
+               "$DATABRICKS_HOST/api/2.0/workspace/mkdirs" \
+               -d "{\"path\": \"$WORKSPACE_DIR\"}"
+          
+          # Upload notebook1.ipynb
+          echo "Uploading notebook1.ipynb..."
+          NOTEBOOK1_CONTENT=$(base64 -i notebooks/notebook1.ipynb)
+          curl -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+               -H "Content-Type: application/json" \
+               "$DATABRICKS_HOST/api/2.0/workspace/import" \
+               -d "{
+                 \"path\": \"$WORKSPACE_DIR/notebook1\",
+                 \"format\": \"JUPYTER\",
+                 \"language\": \"PYTHON\",
+                 \"content\": \"$NOTEBOOK1_CONTENT\",
+                 \"overwrite\": true
+               }"
+          
+          # Upload notebook2.py
+          echo "Uploading notebook2.py..."
+          NOTEBOOK2_CONTENT=$(base64 -i notebooks/notebook2.py)
+          curl -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+               -H "Content-Type: application/json" \
+               "$DATABRICKS_HOST/api/2.0/workspace/import" \
+               -d "{
+                 \"path\": \"$WORKSPACE_DIR/notebook2\",
+                 \"format\": \"SOURCE\",
+                 \"language\": \"PYTHON\",
+                 \"content\": \"$NOTEBOOK2_CONTENT\",
+                 \"overwrite\": true
+               }"
+          
+          echo "WORKSPACE_DIR=$WORKSPACE_DIR" >> $GITHUB_ENV
+
+      - name: Create and run job
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+        run: |
+          echo "Creating job to run notebooks..."
+          
+          # Create job
+          JOB_RESPONSE=$(curl -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+                             -H "Content-Type: application/json" \
+                             "$DATABRICKS_HOST/api/2.1/jobs/create" \
+                             -d '{
+                               "name": "GitHub Pages Demo Job",
+                               "tasks": [
+                                 {
+                                   "task_key": "notebook1",
+                                   "notebook_task": {
+                                     "notebook_path": "'${{ env.WORKSPACE_DIR }}/notebook1'",
+                                     "source": "WORKSPACE"
+                                   },
+                                   "new_cluster": {
+                                     "spark_version": "13.3.x-scala2.12",
+                                     "node_type_id": "i3.xlarge",
+                                     "num_workers": 1
+                                   }
+                                 },
+                                 {
+                                   "task_key": "notebook2",
+                                   "depends_on": [{"task_key": "notebook1"}],
+                                   "notebook_task": {
+                                     "notebook_path": "'${{ env.WORKSPACE_DIR }}/notebook2'",
+                                     "source": "WORKSPACE"
+                                   },
+                                   "new_cluster": {
+                                     "spark_version": "13.3.x-scala2.12",
+                                     "node_type_id": "i3.xlarge",
+                                     "num_workers": 1
+                                   }
+                                 }
+                               ]
+                             }')
+          
+          echo "Job creation response: $JOB_RESPONSE"
+          JOB_ID=$(echo "$JOB_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('job_id', ''))")
+          echo "JOB_ID=$JOB_ID" >> $GITHUB_ENV
+          echo "Created job with ID: $JOB_ID"
+          
+          # Run job
+          echo "Running job..."
+          RUN_RESPONSE=$(curl -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+                             -H "Content-Type: application/json" \
+                             "$DATABRICKS_HOST/api/2.1/jobs/run-now" \
+                             -d "{\"job_id\": $JOB_ID}")
+          
+          echo "Job run response: $RUN_RESPONSE"
+          RUN_ID=$(echo "$RUN_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('run_id', ''))")
+          echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
+          echo "Started job run with ID: $RUN_ID"
+
+      - name: Wait for job completion
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+        run: |
+          echo "Waiting for job completion..."
+          
+          MAX_WAIT=600  # 10 minutes
+          WAIT_TIME=0
+          
+          while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+            sleep 30
+            WAIT_TIME=$((WAIT_TIME + 30))
+            
+            echo "Checking job status... (waited ${WAIT_TIME}s)"
+            
+            STATUS_RESPONSE=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+                                  "$DATABRICKS_HOST/api/2.1/jobs/runs/get?run_id=${{ env.RUN_ID }}")
+            
+            echo "Status response: $STATUS_RESPONSE"
+            
+            STATE=$(echo "$STATUS_RESPONSE" | python3 -c "
+            import sys, json
+            try:
+                data = json.load(sys.stdin)
+                print(data.get('state', {}).get('life_cycle_state', 'UNKNOWN'))
+            except:
+                print('ERROR')
+            ")
+            
+            echo "Job state: $STATE"
+            
+            if [ "$STATE" = "TERMINATED" ]; then
+              RESULT_STATE=$(echo "$STATUS_RESPONSE" | python3 -c "
+              import sys, json
+              try:
+                  data = json.load(sys.stdin)
+                  print(data.get('state', {}).get('result_state', 'UNKNOWN'))
+              except:
+                  print('ERROR')
+              ")
+              echo "Job result: $RESULT_STATE"
+              
+              if [ "$RESULT_STATE" = "SUCCESS" ]; then
+                echo "Job completed successfully!"
+                break
+              else
+                echo "Job failed with result: $RESULT_STATE"
+                exit 1
+              fi
+            elif [ "$STATE" = "SKIPPED" ] || [ "$STATE" = "INTERNAL_ERROR" ]; then
+              echo "Job failed with state: $STATE"
+              exit 1
+            fi
+            
+            echo "Job still running..."
+          done
+          
+          if [ $WAIT_TIME -ge $MAX_WAIT ]; then
+            echo "Job timed out after ${MAX_WAIT} seconds"
+            exit 1
+          fi
+
+      - name: Export executed notebooks as HTML
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+        run: |
+          mkdir -p site
+          
+          echo "Exporting notebooks as HTML..."
+          
+          python3 << 'EOF'
+          import os
+          import json
+          import requests
+          import base64
+          import markdown
+
+          DATABRICKS_HOST = os.environ['DATABRICKS_HOST']
+          DATABRICKS_TOKEN = os.environ['DATABRICKS_TOKEN']
+          WORKSPACE_DIR = os.environ['WORKSPACE_DIR']
+          headers = {'Authorization': f'Bearer {DATABRICKS_TOKEN}'}
+
+          # Databricks brand colors
+          COLORS = {
+              'primary': '#FF3621',
+              'text': '#1B3139', 
+              'bg': '#FFFFFF',
+              'light_bg': '#F5F5F5',
+              'border': '#E3E3E3'
+          }
+
+          def export_notebook(notebook_path, output_name):
+              print(f"Exporting {notebook_path} as HTML...")
+              
+              response = requests.get(
+                  f"{DATABRICKS_HOST}/api/2.0/workspace/export",
+                  headers=headers,
+                  params={
+                      'path': notebook_path,
+                      'format': 'HTML'
+                  }
+              )
+              
+              if response.status_code == 200:
+                  data = response.json()
+                  html_content = base64.b64decode(data['content']).decode('utf-8')
+                  
+                  # Create wrapped HTML with navigation
+                  repo_name = os.environ.get('GITHUB_REPOSITORY', '').split('/')[-1]
+                  title = ' '.join(word.capitalize() for word in repo_name.split('-')) + ' Accelerator'
+                  
+                  wrapped_html = f'''<!DOCTYPE html>
+          <html>
+          <head>
+              <title>{output_name.title()} - {title}</title>
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+              <style>
+                  body {{
+                      font-family: 'DM Sans', sans-serif !important;
+                      margin: 0;
+                      padding: 0;
+                      background: {COLORS['bg']};
+                      color: {COLORS['text']};
+                  }}
+                  .header {{
+                      background: {COLORS['bg']};
+                      padding: 20px 40px;
+                      border-bottom: 1px solid {COLORS['border']};
+                      display: flex;
+                      align-items: center;
+                      gap: 20px;
+                      position: fixed;
+                      top: 0;
+                      width: 100%;
+                      z-index: 1000;
+                  }}
+                  .logo {{ height: 24px; }}
+                  .title {{
+                      font-size: 24px;
+                      font-weight: 600;
+                      flex: 1;
+                      text-align: center;
+                      color: {COLORS['text']};
+                  }}
+                  .github-link {{
+                      background: {COLORS['light_bg']};
+                      padding: 8px 16px;
+                      border-radius: 6px;
+                      text-decoration: none;
+                      color: {COLORS['text']};
+                      font-weight: 500;
+                  }}
+                  .main-container {{
+                      display: flex;
+                      margin-top: 80px;
+                      min-height: calc(100vh - 80px);
+                  }}
+                  .sidebar {{
+                      width: 280px;
+                      background: {COLORS['light_bg']};
+                      padding: 30px 20px;
+                      position: fixed;
+                      left: 0;
+                      top: 80px;
+                      height: calc(100vh - 80px);
+                      overflow-y: auto;
+                  }}
+                  .sidebar h3 {{
+                      font-size: 16px;
+                      font-weight: 600;
+                      margin: 0 0 20px 12px;
+                      color: {COLORS['text']};
+                  }}
+                  .content {{
+                      flex: 1;
+                      padding: 20px;
+                      margin-left: 280px;
+                  }}
+                  .notebook-container {{
+                      background: {COLORS['bg']};
+                      border-radius: 8px;
+                      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                      padding: 40px;
+                      margin: 0 auto;
+                      max-width: 1200px;
+                  }}
+                  .nav-link {{
+                      display: block;
+                      padding: 10px 12px;
+                      margin: 4px 0;
+                      text-decoration: none;
+                      color: {COLORS['text']};
+                      border-radius: 4px;
+                      font-weight: 400;
+                      transition: all 0.2s;
+                  }}
+                  .nav-link:hover {{ background: {COLORS['bg']}; }}
+                  .nav-link.active {{
+                      background: {COLORS['primary']};
+                      color: {COLORS['bg']};
+                      font-weight: 500;
+                  }}
+                  /* Preserve all Databricks output styling */
+                  .notebook-container * {{
+                      font-family: 'DM Sans', sans-serif !important;
+                  }}
+                  .notebook-container pre,
+                  .notebook-container code {{
+                      font-family: 'Monaco', 'Consolas', monospace !important;
+                  }}
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/811f68f9f55e3a5330b6e6ae1e54c07fc5ec7224f15be529de3400226e2eca3a/db-nav-logo.svg" class="logo" alt="Databricks">
+                  <div class="title">{title}</div>
+                  <a href="{os.environ.get('GITHUB_SERVER_URL', '')}/{os.environ.get('GITHUB_REPOSITORY', '')}" class="github-link">View on GitHub</a>
+              </div>
+              <div class="main-container">
+                  <div class="sidebar">
+                      <h3>📚 Documentation</h3>
+                      <a href="index.html" class="nav-link">Overview</a>
+                      <h3 style="margin-top: 30px;">📓 Notebooks</h3>
+                      <a href="notebook1.html" class="nav-link {'active' if output_name == 'notebook1' else ''}">Notebook1</a>
+                      <a href="notebook2.html" class="nav-link {'active' if output_name == 'notebook2' else ''}">Notebook2</a>
+                  </div>
+                  <div class="content">
+                      <div class="notebook-container">
+                          {html_content}
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>'''
+                  
+                  with open(f'site/{output_name}.html', 'w') as f:
+                      f.write(wrapped_html)
+                  
+                  print(f"Successfully exported {output_name}.html")
+                  return True
+              else:
+                  print(f"Failed to export {notebook_path}: {response.status_code} - {response.text}")
+                  return False
+
+          # Export both notebooks
+          notebooks = [
+              (f"{WORKSPACE_DIR}/notebook1", "notebook1"),
+              (f"{WORKSPACE_DIR}/notebook2", "notebook2")
+          ]
+          
+          exported_count = 0
+          for notebook_path, output_name in notebooks:
+              if export_notebook(notebook_path, output_name):
+                  exported_count += 1
+          
+          # Create index.html
+          readme_content = ""
+          if os.path.exists('README.md'):
+              with open('README.md', 'r') as f:
+                  readme_content = markdown.markdown(f.read())
+          
+          repo_name = os.environ.get('GITHUB_REPOSITORY', '').split('/')[-1]
+          title = ' '.join(word.capitalize() for word in repo_name.split('-')) + ' Accelerator'
+          
+          index_html = f'''<!DOCTYPE html>
+          <html>
+          <head>
+              <title>{title}</title>
+              <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+              <style>
+                  body {{
+                      font-family: 'DM Sans', sans-serif;
+                      margin: 0;
+                      padding: 0;
+                      background: {COLORS['bg']};
+                      color: {COLORS['text']};
+                  }}
+                  .header {{
+                      background: {COLORS['bg']};
+                      padding: 20px 40px;
+                      border-bottom: 1px solid {COLORS['border']};
+                      display: flex;
+                      align-items: center;
+                      gap: 20px;
+                      position: fixed;
+                      top: 0;
+                      width: 100%;
+                      z-index: 1000;
+                  }}
+                  .logo {{ height: 24px; }}
+                  .title {{
+                      font-size: 24px;
+                      font-weight: 600;
+                      flex: 1;
+                      text-align: center;
+                      color: {COLORS['text']};
+                  }}
+                  .github-link {{
+                      background: {COLORS['light_bg']};
+                      padding: 8px 16px;
+                      border-radius: 6px;
+                      text-decoration: none;
+                      color: {COLORS['text']};
+                      font-weight: 500;
+                  }}
+                  .main-container {{
+                      display: flex;
+                      margin-top: 80px;
+                      min-height: calc(100vh - 80px);
+                  }}
+                  .sidebar {{
+                      width: 280px;
+                      background: {COLORS['light_bg']};
+                      padding: 30px 20px;
+                      position: fixed;
+                      left: 0;
+                      top: 80px;
+                      height: calc(100vh - 80px);
+                      overflow-y: auto;
+                  }}
+                  .sidebar h3 {{
+                      font-size: 16px;
+                      font-weight: 600;
+                      margin: 0 0 20px 12px;
+                      color: {COLORS['text']};
+                  }}
+                  .content {{
+                      flex: 1;
+                      padding: 20px;
+                      margin-left: 280px;
+                  }}
+                  .content-container {{
+                      background: {COLORS['bg']};
+                      padding: 40px;
+                      border-radius: 8px;
+                      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                      margin: 0 auto;
+                      max-width: 900px;
+                  }}
+                  .nav-link {{
+                      display: block;
+                      padding: 10px 12px;
+                      margin: 4px 0;
+                      text-decoration: none;
+                      color: {COLORS['text']};
+                      border-radius: 4px;
+                      font-weight: 400;
+                      transition: all 0.2s;
+                  }}
+                  .nav-link:hover {{ background: {COLORS['bg']}; }}
+                  .nav-link.active {{
+                      background: {COLORS['primary']};
+                      color: {COLORS['bg']};
+                      font-weight: 500;
+                  }}
+                  h1, h2, h3 {{ color: {COLORS['text']}; font-weight: 600; }}
+                  h1 {{ font-size: 32px; margin: 0 0 24px 0; }}
+                  h2 {{ font-size: 24px; margin: 32px 0 16px 0; }}
+                  h3 {{ font-size: 18px; margin: 24px 0 12px 0; }}
+                  p {{ line-height: 1.6; margin: 0 0 16px 0; }}
+                  code {{
+                      background: {COLORS['light_bg']};
+                      padding: 2px 6px;
+                      border-radius: 3px;
+                      font-family: 'Monaco', 'Consolas', monospace;
+                      font-size: 14px;
+                  }}
+                  pre {{
+                      background: {COLORS['light_bg']};
+                      padding: 16px;
+                      border-radius: 6px;
+                      overflow-x: auto;
+                      margin: 16px 0;
+                  }}
+                  ul, ol {{ margin: 0 0 16px 0; padding-left: 24px; line-height: 1.6; }}
+                  a {{ color: {COLORS['primary']}; text-decoration: none; }}
+                  a:hover {{ text-decoration: underline; }}
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <img src="https://databricks-prod-cloudfront.cloud.databricks.com/static/811f68f9f55e3a5330b6e6ae1e54c07fc5ec7224f15be529de3400226e2eca3a/db-nav-logo.svg" class="logo" alt="Databricks">
+                  <div class="title">{title}</div>
+                  <a href="{os.environ.get('GITHUB_SERVER_URL', '')}/{os.environ.get('GITHUB_REPOSITORY', '')}" class="github-link">View on GitHub</a>
+              </div>
+              <div class="main-container">
+                  <div class="sidebar">
+                      <h3>📚 Documentation</h3>
+                      <a href="index.html" class="nav-link active">Overview</a>
+                      <h3 style="margin-top: 30px;">📓 Notebooks</h3>
+                      <a href="notebook1.html" class="nav-link">Notebook1</a>
+                      <a href="notebook2.html" class="nav-link">Notebook2</a>
+                  </div>
+                  <div class="content">
+                      <div class="content-container">
+                          {readme_content}
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>'''
+          
+          with open('site/index.html', 'w') as f:
+              f.write(index_html)
+          
+          print(f"Created index.html and exported {exported_count} notebooks")
+          EOF
+
+      - name: Cleanup job
+        if: always()
+        env:
+          DATABRICKS_HOST: 'https://e2-demo-field-eng.cloud.databricks.com'
+          DATABRICKS_TOKEN: ${{ secrets.DEPLOY_NOTEBOOK_TOKEN }}
+        run: |
+          if [ ! -z "${{ env.JOB_ID }}" ]; then
+            echo "Cleaning up job ${{ env.JOB_ID }}..."
+            curl -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+                 "$DATABRICKS_HOST/api/2.1/jobs/delete" \
+                 -d "{\"job_id\": ${{ env.JOB_ID }}}"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
