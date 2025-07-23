@@ -44,7 +44,7 @@ jobs:
               if [ -f "$notebook" ]; then
                   jupyter nbconvert "$notebook" --to html --output-dir site \
                     --template classic --HTMLExporter.theme=light \
-                    --no-input-prompt --no-output-prompt
+                    --no-prompt
               fi
           done
           
