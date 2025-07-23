@@ -179,23 +179,40 @@ jobs:
                   print(f"Failed to get run details: {response.status_code} - {response.text}")
                   return None
 
-          def export_notebook_html(notebook_path, output_name):
-              """Export notebook HTML from workspace"""
+          def export_job_run_notebook(run_id, task_key):
+              """Export notebook HTML from job run results (with outputs)"""
               response = requests.get(
-                  f"{DATABRICKS_HOST}/api/2.0/workspace/export",
+                  f"{DATABRICKS_HOST}/api/2.1/jobs/runs/export",
                   headers=headers,
                   params={
-                      'path': notebook_path,
+                      'run_id': run_id,
                       'format': 'HTML'
                   }
               )
               
               if response.status_code == 200:
                   data = response.json()
-                  html_content = base64.b64decode(data['content']).decode('utf-8')
-                  return html_content
+                  
+                  # The response contains HTML for all tasks
+                  # We need to extract the specific task's notebook HTML
+                  views = data.get('views', [])
+                  
+                  for view in views:
+                      if view.get('name') == task_key:
+                          content = view.get('content', '')
+                          if content:
+                              html_content = base64.b64decode(content).decode('utf-8')
+                              return html_content
+                  
+                  # If specific task not found, try to get the full run HTML
+                  if 'content' in data:
+                      html_content = base64.b64decode(data['content']).decode('utf-8')
+                      return html_content
+                      
+                  print(f"No content found for task {task_key} in run {run_id}")
+                  return None
               else:
-                  print(f"Failed to export {notebook_path}: {response.status_code} - {response.text}")
+                  print(f"Failed to export run {run_id}: {response.status_code} - {response.text}")
                   return None
 
           def create_wrapped_html(notebook_name, notebook_html, all_notebooks):
@@ -352,6 +369,19 @@ jobs:
                       margin: 10px 0 !important;
                       overflow-x: auto !important;
                   }}
+                  
+                  /* Hide loading bars and progress indicators */
+                  .progress,
+                  .progress-bar,
+                  [class*="loading"],
+                  [class*="spinner"],
+                  .sk-circle,
+                  .sk-pulse {{
+                      display: none !important;
+                  }}
+                  
+                  /* Hide any JavaScript that might cause loading indicators */
+                  script {{ display: none !important; }}
               </style>
           </head>
           <body>
@@ -424,12 +454,12 @@ jobs:
               for nb in executed_notebooks:
                   print(f"  - {nb['name']}: {nb['path']}")
               
-              # Export each notebook
+              # Export each notebook from job run results
               exported_notebooks = []
               for nb in executed_notebooks:
-                  print(f"Exporting {nb['name']} from {nb['path']}...")
+                  print(f"Exporting {nb['name']} from job run {RUN_ID}...")
                   
-                  html_content = export_notebook_html(nb['path'], nb['name'])
+                  html_content = export_job_run_notebook(RUN_ID, nb['task_key'])
                   if html_content:
                       # Create wrapped HTML
                       all_notebook_names = [n['name'] for n in executed_notebooks]
@@ -441,9 +471,9 @@ jobs:
                           f.write(wrapped_html)
                       
                       exported_notebooks.append(nb['name'])
-                      print(f"Successfully exported {nb['name']}.html")
+                      print(f"Successfully exported {nb['name']}.html with job run outputs")
                   else:
-                      print(f"Failed to export {nb['name']}")
+                      print(f"Failed to export {nb['name']} from job run")
               
               # Create index.html
               readme_content = ""
