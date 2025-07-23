@@ -154,15 +154,24 @@ jobs:
               return response.json() if response.status_code == 200 else None
 
           def export_task_notebook(task_run_id):
+              print(f"Attempting to export task run ID: {task_run_id}")
               response = requests.get(
                   f"{DATABRICKS_HOST}/api/2.0/jobs/runs/export",
                   headers=headers,
                   params={'run_id': task_run_id, 'format': 'HTML'}
               )
+              print(f"Export response status: {response.status_code}")
               if response.status_code == 200:
                   data = response.json()
+                  print(f"Response keys: {list(data.keys())}")
                   if 'content' in data:
-                      return base64.b64decode(data['content']).decode('utf-8')
+                      html_content = base64.b64decode(data['content']).decode('utf-8')
+                      print(f"Successfully decoded HTML content ({len(html_content)} chars)")
+                      return html_content
+                  else:
+                      print("No 'content' key in response")
+              else:
+                  print(f"Export failed: {response.status_code} - {response.text}")
               return None
 
           def create_simple_html(notebook_name, notebook_html, all_notebooks):
@@ -250,15 +259,22 @@ jobs:
 
           # Find notebook tasks
           notebook_tasks = []
-          for task in run_details.get('tasks', []):
+          print("Analyzing tasks from run details:")
+          for i, task in enumerate(run_details.get('tasks', [])):
               task_key = task.get('task_key', '')
               task_run_id = task.get('run_id')
+              has_notebook_task = bool(task.get('notebook_task'))
+              print(f"Task {i}: key='{task_key}', run_id='{task_run_id}', has_notebook_task={has_notebook_task}")
+              print(f"  All task keys: {list(task.keys())}")
               if task.get('notebook_task') and task_run_id:
                   notebook_tasks.append({'name': task_key, 'run_id': task_run_id})
+                  print(f"  ✓ Added to notebook_tasks")
 
           print(f"Found {len(notebook_tasks)} notebook tasks")
           if not notebook_tasks:
               print("No notebook tasks found")
+              print("Full run details:")
+              print(json.dumps(run_details, indent=2))
               exit(1)
 
           # Export each notebook
