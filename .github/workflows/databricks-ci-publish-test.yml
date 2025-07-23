@@ -121,7 +121,7 @@ jobs:
           echo "$RUN_OUTPUT"
           
           # Extract run ID from output
-          RUN_ID=$(echo "$RUN_OUTPUT" | grep -o 'Run URL:.*runs/[0-9]*' | grep -o '[0-9]*$' || echo "")
+          RUN_ID=$(echo "$RUN_OUTPUT" | grep -o 'Run URL:.*run/[0-9]*' | grep -o '[0-9]*$' || echo "")
           if [ -z "$RUN_ID" ]; then
             echo "Could not extract run ID from output"
             exit 1
