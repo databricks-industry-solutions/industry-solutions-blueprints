@@ -4,11 +4,9 @@ on:
   pull_request:
     branches:
       - main
-      - feature/dabsdeploy
   push:
     branches:
       - main
-      - feature/dabsdeploy
 
 jobs:
   validate-and-test:
