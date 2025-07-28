@@ -1,5 +1,5 @@
 bundle:
-  name: ${var.project_name}
+  name: demo_workflow
 
 variables:
   # Project name - replace with your solution accelerator name
